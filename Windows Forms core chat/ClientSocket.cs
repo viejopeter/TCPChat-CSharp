@@ -12,5 +12,10 @@ namespace Windows_Forms_Chat
         public const int BUFFER_SIZE = 2048;
         public byte[] buffer = new byte[BUFFER_SIZE];
         public string username { get; set; }
+        // Unique identifier for each client
+        public Guid Id { get; } = Guid.NewGuid();
+
+        // Short ID for display (first 6 chars of Guid, uppercased, no dashes)
+        public string ShortId => Id.ToString("N").Substring(0, 6).ToUpper();
     }
 }

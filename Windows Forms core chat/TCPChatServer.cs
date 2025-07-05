@@ -114,7 +114,8 @@ namespace Windows_Forms_Chat
             else if (text.Contains("!username "))
             {
                 string requestedUsername = text.Substring(10).Trim();
-                bool existUsername = clientSockets.Exists(allClients => allClients.username != null || allClients.Equals(requestedUsername));
+                bool existUsername = clientSockets.Exists(allClients => allClients.username != null && allClients.username.Equals(requestedUsername, StringComparison.OrdinalIgnoreCase));
+
                 if (existUsername)
                 {
                     byte[] rejection = Encoding.ASCII.GetBytes("Username already taken");
@@ -145,8 +146,10 @@ namespace Windows_Forms_Chat
             }
             else
             {
+                string displayUsername = currentClientSocket.username ?? $"User-{currentClientSocket.ShortId}";
+                string formattedMessage = $"{displayUsername}: {text}";
                 //normal message broadcast out to all clients
-                SendToAll(text, currentClientSocket);
+                SendToAll(formattedMessage, currentClientSocket);
             }
             //we just received a message from this socket, better keep an ear out with another thread for the next one
             currentClientSocket.socket.BeginReceive(currentClientSocket.buffer, 0, ClientSocket.BUFFER_SIZE, SocketFlags.None, ReceiveCallback, currentClientSocket);
