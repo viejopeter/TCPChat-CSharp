@@ -92,6 +92,8 @@ namespace Windows_Forms_Chat
                 client.SendString(TypeTextBox.Text);
             else if (server != null)
                 server.SendToAll(TypeTextBox.Text, null);
+
+            TypeTextBox.Clear();
         }
 
         private void Form1_Load(object sender, EventArgs e)

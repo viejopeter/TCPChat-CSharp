@@ -96,8 +96,19 @@ namespace Windows_Forms_Chat
             string text = Encoding.ASCII.GetString(recBuf);
             Console.WriteLine("Received Text: " + text);
 
-            //text is from server but could have been broadcast from the other clients
-            AddToChat(text);
+
+            // If the client receives the command to clear the chat
+            if (text == "!clear_chat")
+            {
+                chatTextBox.Invoke((Action)(() => chatTextBox.Clear())); // Clears the chat window
+                AddToChat("Chat has been cleared.");
+            }
+            else
+            {
+                //text is from server but could have been broadcast from the other clients
+                AddToChat(text);
+            }
+
 
             //we just received a message from this socket, better keep an ear out with another thread for the next one
             currentClientSocket.socket.BeginReceive(currentClientSocket.buffer, 0, ClientSocket.BUFFER_SIZE, SocketFlags.None, ReceiveCallback, currentClientSocket);

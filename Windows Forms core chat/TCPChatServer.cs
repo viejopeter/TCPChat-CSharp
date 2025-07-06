@@ -1,8 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Text;
+using System.Linq;
 using System.Net;
 using System.Net.Sockets;
+using System.Text;
 using System.Threading;
 using System.Windows.Forms;
 
@@ -34,12 +35,12 @@ namespace Windows_Forms_Chat
 
         public void SetupServer()
         {
-            chatTextBox.Text += "Setting up server...\n";
+            chatTextBox.Text += "Setting up server..." + Environment.NewLine;
             serverSocket.Bind(new IPEndPoint(IPAddress.Any, port));
             serverSocket.Listen(0);
             //kick off thread to read connecting clients, when one connects, it'll call out AcceptCallback function
             serverSocket.BeginAccept(AcceptCallback, this);
-            chatTextBox.Text += "Server setup complete\n";
+            chatTextBox.Text += "Server setup complete " + Environment.NewLine;
         }
 
 
@@ -70,6 +71,7 @@ namespace Windows_Forms_Chat
 
             ClientSocket newClientSocket = new ClientSocket();
             newClientSocket.socket = joiningSocket;
+            newClientSocket.username = $"User-{newClientSocket.ShortId}";
 
             clientSockets.Add(newClientSocket);
             //start a thread to listen out for this new joining socket. Therefore there is a thread open for each client
@@ -85,6 +87,10 @@ namespace Windows_Forms_Chat
             ClientSocket currentClientSocket = (ClientSocket)AR.AsyncState;
 
             int received;
+            string oldUsername = "";
+            string lsConnectedUsers = "";
+            string formattedMessage = "";
+
 
             try
             {
@@ -103,37 +109,191 @@ namespace Windows_Forms_Chat
             Array.Copy(currentClientSocket.buffer, recBuf, received);
             string text = Encoding.ASCII.GetString(recBuf);
 
-            AddToChat(text);
+            string messageLogServer = $"[Server Log] User '{currentClientSocket.username}'";
 
             if (text.ToLower() == "!commands") // Client requested time
             {
-                byte[] data = Encoding.ASCII.GetBytes("Commands are !commands !about !who !whisper !exit");
+                // Send the information to the client
+                byte[] data = Encoding.ASCII.GetBytes("Commands are !commands !about !who !whoami !username !whisper !help !clear !exit ");
                 currentClientSocket.socket.Send(data);
-                AddToChat("Commands sent to client");
+                // Log in server UI
+                AddToChat($"{messageLogServer} requested the list of commands.");
             }
             else if (text.Contains("!username "))
             {
                 string requestedUsername = text.Substring(10).Trim();
-                bool existUsername = clientSockets.Exists(allClients => allClients.username != null && allClients.username.Equals(requestedUsername, StringComparison.OrdinalIgnoreCase));
+                bool existUsername = clientSockets.Any(otherClient =>
+                                        otherClient != currentClientSocket &&
+                                        otherClient.username.Equals(requestedUsername, StringComparison.OrdinalIgnoreCase));
 
                 if (existUsername)
                 {
+                    // Send the information to the client
                     byte[] rejection = Encoding.ASCII.GetBytes("Username already taken");
                     currentClientSocket.socket.Send(rejection);
                     // Always Shutdown before closing
                     currentClientSocket.socket.Shutdown(SocketShutdown.Both);
                     currentClientSocket.socket.Close();
                     clientSockets.Remove(currentClientSocket);
-                    AddToChat("Client disconnected due to duplicate username");
+                    // Log in server UI
+                    AddToChat($"{messageLogServer} was disconnected for trying to use an existing username: '{requestedUsername}'");
+                    //normal message broadcast out to all clients
+                    SendToAll($"User {currentClientSocket.username} was disconnected", currentClientSocket);
                     return;
                 }
                 else
                 {
-                    currentClientSocket.username = requestedUsername;
-                    byte[] data = Encoding.ASCII.GetBytes("Username accepted");
-                    currentClientSocket.socket.Send(data);
-                    AddToChat($"User '{requestedUsername}' joined the chat.");
+                    if(currentClientSocket.username == requestedUsername)
+                    {
+                        // Send the information to the client
+                        byte[] sameNameMessage = Encoding.ASCII.GetBytes("You're already using this username.");
+                        currentClientSocket.socket.Send(sameNameMessage);
+                    }
+                    else
+                    {
+                        oldUsername = currentClientSocket.username;
+                        currentClientSocket.username = requestedUsername;
+                        formattedMessage = $"User '{oldUsername}' changed username to '{requestedUsername}' successfully";
+
+                        // Send the information to the client
+                        byte[] data = Encoding.ASCII.GetBytes("Username accepted successfully");
+                        currentClientSocket.socket.Send(data);
+                        // Log in server UI
+                        AddToChat(formattedMessage);
+                        //normal message broadcast out to all clients
+                        SendToAll(formattedMessage, currentClientSocket);
+                    }
+
                 }
+            }
+            else if (text.ToLower() == "!who") // Send back a list connected user (usernames)
+            {
+                foreach(ClientSocket c in clientSockets)
+                {
+                    lsConnectedUsers += c.username + Environment.NewLine;
+                }
+
+                // Send the list back to the client who asked
+                byte[] data = Encoding.ASCII.GetBytes("Connected users:" + Environment.NewLine + lsConnectedUsers);
+                currentClientSocket.socket.Send(data);
+
+                // Log in server UI
+                AddToChat($"{messageLogServer} used !who command");
+            }
+            else if (text.ToLower() == "!about") // Client requested information about the server
+            {
+                // Information about the server
+                string aboutMessage = "Server Information: " + Environment.NewLine;
+                aboutMessage += "Editor: Pedro Q " + Environment.NewLine;
+                aboutMessage += "Purpose: TCP Chat server for connecting users and sharing messages " + Environment.NewLine;
+                aboutMessage += "Year of Development: 2025 " + Environment.NewLine;
+
+                // Send the information to the client
+                byte[] data = Encoding.ASCII.GetBytes(aboutMessage);
+                currentClientSocket.socket.Send(data);
+                
+                // Log in server UI
+                AddToChat($"{messageLogServer} used !about command");
+            }
+            else if (text.ToLower() == "!whoami")
+            {
+                string currentUsername = currentClientSocket.username;
+                string reply = $"Your current username is: {currentUsername}";
+                byte[] data = Encoding.ASCII.GetBytes(reply);
+                currentClientSocket.socket.Send(data);
+
+                // Log in server UI
+                AddToChat($"{messageLogServer} used !whoami command");
+            }
+            else if (text.ToLower().StartsWith("!whisper "))
+            {
+                // Extract the full message without the command
+                string commandContent = text.Substring(9).Trim();
+
+                // Split into username and message
+                int spaceIndex = commandContent.IndexOf(' ');
+                if (spaceIndex == -1)
+                {
+                    byte[] errorMsg = Encoding.ASCII.GetBytes("Invalid whisper format. Use: !whisper [username] [message]");
+                    currentClientSocket.socket.Send(errorMsg);
+                }
+                else
+                {
+                    string targetUsername = commandContent.Substring(0, spaceIndex);
+                    string messageToSend = commandContent.Substring(spaceIndex + 1);
+
+
+                    if (currentClientSocket.username != null &&
+                        currentClientSocket.username.Equals(targetUsername, StringComparison.OrdinalIgnoreCase))
+                    {
+                        // Send the information to the client
+                        byte[] selfWhisperMsg = Encoding.ASCII.GetBytes("You cannot whisper to yourself.");
+                        currentClientSocket.socket.Send(selfWhisperMsg);
+                        // Log in server UI
+                        AddToChat($"{messageLogServer} tried to whisper to themselves.");
+                    }
+                    else
+                    {
+
+                        ClientSocket targetClient = clientSockets.FirstOrDefault(c =>
+                               c.username != null &&
+                               c.username.Equals(targetUsername, StringComparison.OrdinalIgnoreCase));
+
+                        if (targetClient != null)
+                        {
+                            string whisperMessage = $"[Whisper from {currentClientSocket.username}]: {messageToSend}";
+
+                            // Send the information to target client
+                            byte[] data = Encoding.ASCII.GetBytes(whisperMessage);
+                            targetClient.socket.Send(data);
+
+                            // Send the information to the client
+                            byte[] confirmation = Encoding.ASCII.GetBytes($"[Whisper to {targetUsername}]: {messageToSend}");
+                            currentClientSocket.socket.Send(confirmation);
+                            
+                            // Log in server UI
+                            AddToChat($"{messageLogServer} whispered to {targetUsername}: {messageToSend}");
+                        }
+                        else
+                        {
+                            // Send the information to the client
+                            byte[] notFoundMsg = Encoding.ASCII.GetBytes($"User '{targetUsername}' not found.");
+                            currentClientSocket.socket.Send(notFoundMsg);
+
+                            // Log in server UI
+                            AddToChat($"{messageLogServer} tried to whisper to non existent user '{targetUsername}'");
+
+                        }
+                    }
+                }
+            }
+            else if (text.ToLower() == "!help")
+            {
+                string helpText =
+                    "Available Commands: " + Environment.NewLine +
+                    "!commands = List all commands " + Environment.NewLine +
+                    "!about = Info about the server " + Environment.NewLine +
+                    "!who = List connected users " + Environment.NewLine +
+                    "!whoami = Show your username " + Environment.NewLine +
+                    "!username [newName] = Change username " + Environment.NewLine +
+                    "!whisper [username] [msg] = Send private message " + Environment.NewLine +
+                    "!help = Details of the command list " + Environment.NewLine +
+                    "!clear = Clear the chat window " + Environment.NewLine +
+                    "!exit = Disconnect from chat";
+                
+                // Send the information to the client
+                currentClientSocket.socket.Send(Encoding.ASCII.GetBytes(helpText));
+                
+                // Log in server UI
+                AddToChat($"{messageLogServer} used !help command");
+            }
+            else if (text.ToLower() == "!clear")
+            {
+                // Send a special signal to the client so it knows to clear the chat
+                currentClientSocket.socket.Send(Encoding.ASCII.GetBytes("!clear_chat"));
+
+                // Log on server UI
+                AddToChat($"{messageLogServer} used !clear command");
             }
             else if (text.ToLower() == "!exit") // Client wants to exit gracefully
             {
@@ -141,15 +301,20 @@ namespace Windows_Forms_Chat
                 currentClientSocket.socket.Shutdown(SocketShutdown.Both);
                 currentClientSocket.socket.Close();
                 clientSockets.Remove(currentClientSocket);
-                AddToChat("Client disconnected");
+
+                // Log on server UI
+                AddToChat($"{messageLogServer} used !exit command and has been disconnected");
+                //normal message broadcast out to all clients
+                SendToAll($"User {currentClientSocket.username} was disconnected", currentClientSocket);
                 return;
             }
             else
             {
-                string displayUsername = currentClientSocket.username ?? $"User-{currentClientSocket.ShortId}";
-                string formattedMessage = $"{displayUsername}: {text}";
+                formattedMessage = $"{currentClientSocket.username}: {text}";
+                // Log on server UI
+                AddToChat(formattedMessage);
                 //normal message broadcast out to all clients
-                SendToAll(formattedMessage, currentClientSocket);
+                SendToAll(formattedMessage, currentClientSocket);     
             }
             //we just received a message from this socket, better keep an ear out with another thread for the next one
             currentClientSocket.socket.BeginReceive(currentClientSocket.buffer, 0, ClientSocket.BUFFER_SIZE, SocketFlags.None, ReceiveCallback, currentClientSocket);
@@ -157,6 +322,7 @@ namespace Windows_Forms_Chat
 
         public void SendToAll(string str, ClientSocket from)
         {
+
             foreach (ClientSocket c in clientSockets)
             {
                 if (from == null || !from.socket.Equals(c))
