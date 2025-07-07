@@ -222,6 +222,7 @@ namespace Windows_Forms_Chat
                     string targetUsername = commandContent.Substring(0, spaceIndex);
                     string messageToSend = commandContent.Substring(spaceIndex + 1);
 
+                    
 
                     if (currentClientSocket.username != null &&
                         currentClientSocket.username.Equals(targetUsername, StringComparison.OrdinalIgnoreCase))
@@ -234,10 +235,8 @@ namespace Windows_Forms_Chat
                     }
                     else
                     {
-
-                        ClientSocket targetClient = clientSockets.FirstOrDefault(c =>
-                               c.username != null &&
-                               c.username.Equals(targetUsername, StringComparison.OrdinalIgnoreCase));
+                        // Find the target client by username
+                        ClientSocket targetClient = FindClientByUsername(targetUsername);
 
                         if (targetClient != null)
                         {
@@ -295,6 +294,42 @@ namespace Windows_Forms_Chat
                 // Log on server UI
                 AddToChat($"{messageLogServer} used !clear command");
             }
+            else if (text.StartsWith("!kick "))
+            {
+                if (!currentClientSocket.IsModerator)
+                {
+                    currentClientSocket.socket.Send(Encoding.ASCII.GetBytes("[Server Log] Only moderators can kick users."));
+                    AddToChat($"{messageLogServer} attempted to use the !kick command but is not a moderator.");
+                }
+                else
+                {
+                    string targetUsername = text.Substring(6).Trim();
+
+                    ClientSocket targetUser = FindClientByUsername(targetUsername);
+
+                    if (targetUser == null)
+                    {
+                        currentClientSocket.socket.Send(Encoding.ASCII.GetBytes($"[Server Log] user '{targetUsername}' not found."));
+                    }
+                    else if (targetUser == currentClientSocket)
+                    {
+                        currentClientSocket.socket.Send(Encoding.ASCII.GetBytes("[Server Log] You cannot kick yourself."));
+                    }
+                    else
+                    {
+                        // Always Shutdown before closing
+                        targetUser.socket.Send(Encoding.ASCII.GetBytes("[Server Log] You have been kicked by a moderator."));
+                        // Log on server UI
+                        targetUser.socket.Shutdown(SocketShutdown.Both);
+                        // Close the socket
+                        targetUser.socket.Close();
+                        clientSockets.Remove(targetUser);
+                        string message = $"[Server Log] user '{targetUser.username}' has been kicked by moderator '{currentClientSocket.username}'.";
+                        AddToChat(message);
+                        SendToAll(message, null);
+                    }
+                }
+            }
             else if (text.ToLower() == "!exit") // Client wants to exit gracefully
             {
                 // Always Shutdown before closing
@@ -318,6 +353,75 @@ namespace Windows_Forms_Chat
             }
             //we just received a message from this socket, better keep an ear out with another thread for the next one
             currentClientSocket.socket.BeginReceive(currentClientSocket.buffer, 0, ClientSocket.BUFFER_SIZE, SocketFlags.None, ReceiveCallback, currentClientSocket);
+        }
+        public void HandleServerCommand(string command)
+        {
+            string[] parts = command.Trim().Split(' ', 2);
+            // Ensure the command is not empty
+            string cmd = parts[0].ToLower();
+            // Extract the parameter if it exists
+            string targetUsername = parts.Length > 1 ? parts[1].Trim() : null;
+
+            if (cmd == "!mod")
+            {
+                ClientSocket targetUser = FindClientByUsername(targetUsername);
+
+                if (targetUser != null)
+                {
+                    // If the user is found, toggle their moderator status
+                    if (targetUser.IsModerator)
+                    {
+                        // Demote the user from moderator
+                        targetUser.IsModerator = false;
+                        // Send a message to all clients about the demotion
+                        SendToAll($"[Server] {targetUsername} has been demoted from moderator.", null);
+                        AddToChat($"[Server Log] Demoted {targetUsername} from moderator.");
+                    }
+                    else
+                    {
+                        // Promote the user to moderator
+                        targetUser.IsModerator = true;
+                        // Send a message to all clients about the promotion
+                        SendToAll($"[Server] {targetUsername} has been promoted to moderator.", null);
+                        AddToChat($"[Server Log] Promoted {targetUsername} to moderator.");
+                    }
+                }
+                else
+                {
+                    // If the user is not found, log it and return
+                    AddToChat($"[Server] User '{targetUsername}' not found.");
+
+                }
+            }
+            else if (cmd == "!mods")
+            {
+                // List all current moderators
+                var mods = clientSockets.Where(c => c.IsModerator).Select(c => c.username).ToList();
+                if (mods.Count == 0)
+                {
+                    // If no moderators are found, log it in the server side
+                    AddToChat("[Server Log] No moderators currently assigned.");
+                }
+                else
+                {
+                    // If moderators are found, list them
+                    AddToChat("[Server Log] Current moderators:");
+                    foreach (string mod in mods)
+                        AddToChat($" - {mod}");
+                }
+            }
+            else
+            {
+                // Handle unknown commands for server
+                AddToChat("[Server Log] Unknown server command.");
+            }
+        }
+
+        private ClientSocket FindClientByUsername(string username)
+        {
+            return clientSockets.FirstOrDefault(c =>
+                c.username != null &&
+                c.username.Equals(username, StringComparison.OrdinalIgnoreCase));
         }
 
         public void SendToAll(string str, ClientSocket from)

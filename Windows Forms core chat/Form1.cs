@@ -88,10 +88,26 @@ namespace Windows_Forms_Chat
 
         private void SendButton_Click(object sender, EventArgs e)
         {
+            string input = TypeTextBox.Text;
+
             if (client != null)
-                client.SendString(TypeTextBox.Text);
+                client.SendString(input);
             else if (server != null)
-                server.SendToAll(TypeTextBox.Text, null);
+            {
+                //it’s a command sever side
+                if (input.StartsWith("!"))
+                {
+                    // Regular server message
+                    server.AddToChat($"[Server]: {input}");
+                    server.HandleServerCommand(input);
+                }
+                else
+                {
+                    // Regular server message
+                    server.AddToChat($"[Server]: {input}");
+                    server.SendToAll($"[Server]: {input}", null);
+                }
+            }
 
             TypeTextBox.Clear();
         }

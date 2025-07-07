@@ -17,5 +17,8 @@ namespace Windows_Forms_Chat
 
         // Short ID for display (first 6 chars of Guid, uppercased, no dashes)
         public string ShortId => Id.ToString("N").Substring(0, 6).ToUpper();
+
+        // Moderator status
+        public bool IsModerator { get; set; } = false;
     }
 }
