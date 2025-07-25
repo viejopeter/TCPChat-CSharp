@@ -1,28 +1,27 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Windows.Forms;
 
-//reference: https://github.com/AbleOpus/NetworkingSamples/blob/master/MultiClient/Program.cs
 namespace Windows_Forms_Chat
 {
     public class TCPChatClient : TCPChatBase
     {
-        //public static TCPChatClient tcpChatClient;
+        // Main socket used to connect to the server
         public Socket socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        
+        // Wrapper class holding socket and client
         public ClientSocket clientSocket = new ClientSocket();
 
 
         public int serverPort;
         public string serverIP;
 
-
-        public static TCPChatClient CreateInstance(int port, int serverPort, string serverIP, TextBox chatTextBox)
+        // Factory method to create an instance of the client with proper setup
+        public static TCPChatClient CreateInstance(int port, int serverPort, string serverIP, TextBox chatTextBox, string username_txt)
         {
             TCPChatClient tcp = null;
-            //if port values are valid and ip worth attempting to join
+            // Validate ports and IP, and ensure chatTextBox is not null
             if (port > 0 && port < 65535 &&
                 serverPort > 0 && serverPort < 65535 &&
                 serverIP.Length > 0 &&
@@ -34,12 +33,13 @@ namespace Windows_Forms_Chat
                 tcp.serverIP = serverIP;
                 tcp.chatTextBox = chatTextBox;
                 tcp.clientSocket.socket = tcp.socket;
+                tcp.clientSocket.username = username_txt;
 
             }
 
             return tcp;
         }
-
+        // Attempt to connect to the server, retrying until successful
         public void ConnectToServer()
         {
             int attempts = 0;
@@ -50,28 +50,30 @@ namespace Windows_Forms_Chat
                 {
                     attempts++;
                     SetChat("Connection attempt " + attempts);
-                    // Change IPAddress.Loopback to a remote IP to connect to a remote host.
+                    // Connect to the server using provided IP and port
                     socket.Connect(serverIP, serverPort);
                 }
                 catch (SocketException)
                 {
+                    // Clear chat box on connection failure
                     chatTextBox.Text = "";
                 }
             }
 
-            //Console.Clear();
+            // Show successful connection
             AddToChat("Connected");
-            //keep open thread for receiving data
+
+            // Begin listening for incoming data from the server
             clientSocket.socket.BeginReceive(clientSocket.buffer, 0, ClientSocket.BUFFER_SIZE, SocketFlags.None, ReceiveCallback, clientSocket);
         }
-
+        // Sends a plain text message to the server
         public void SendString(string text)
         {
             byte[] buffer = Encoding.ASCII.GetBytes(text);
             socket.Send(buffer, 0, buffer.Length, SocketFlags.None);
         }
 
-
+        // Callback for receiving data from the server
         public void ReceiveCallback(IAsyncResult AR)
         {
             ClientSocket currentClientSocket = (ClientSocket)AR.AsyncState;
@@ -85,34 +87,43 @@ namespace Windows_Forms_Chat
             catch (SocketException)
             {
                 AddToChat("Client forcefully disconnected");
-                // Don't shutdown because the socket may be disposed and its disconnected anyway.
+                // Close socket if disconnected
                 currentClientSocket.socket.Close();
                 return;
             }
-            //read bytes from packet
+            // Copy received data into a new byte array
             byte[] recBuf = new byte[received];
             Array.Copy(currentClientSocket.buffer, recBuf, received);
-            //convert to string so we can work with it
+            
+            // Convert received bytes to string
             string text = Encoding.ASCII.GetString(recBuf);
             Console.WriteLine("Received Text: " + text);
 
-
-            // If the client receives the command to clear the chat
+            // Handle specific server commands or response
             if (text == "!clear_chat")
             {
-                chatTextBox.Invoke((Action)(() => chatTextBox.Clear())); // Clears the chat window
+                // Clear the chat UI from the client side
+                chatTextBox.Invoke((Action)(() => chatTextBox.Clear()));
                 AddToChat("Chat has been cleared.");
+            }
+            else if (text == "Username already taken")
+            {
+                MessageBox.Show("Username already exists. You will be disconnected.", "Username Conflict", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            else if (text == "Username accepted successfully")
+            {
+                MessageBox.Show("Username changed successfully!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             else
             {
-                //text is from server but could have been broadcast from the other clients
+                // General message received from server
                 AddToChat(text);
             }
 
-
-            //we just received a message from this socket, better keep an ear out with another thread for the next one
+            // Continue listening for more data from the server
             currentClientSocket.socket.BeginReceive(currentClientSocket.buffer, 0, ClientSocket.BUFFER_SIZE, SocketFlags.None, ReceiveCallback, currentClientSocket);
         }
+        // Close the client's socket connection
         public void Close()
         {
             socket.Close();
