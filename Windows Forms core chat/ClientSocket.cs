@@ -3,6 +3,19 @@ using System.Net.Sockets;
 
 namespace Windows_Forms_Chat
 {
+    // Enumeration defining different possible states a client can be in
+    public enum ClientState
+    {
+        // Login state: Client either login or signup step
+        Login,
+
+        // Chatting state: Client is in the chat room
+        Chatting,
+
+        // Playing state: Client is in the game
+        Playing
+    }
+
     public class ClientSocket
     {
         //add other attributes to this, e.g username, what state the client is in etc
@@ -21,5 +34,8 @@ namespace Windows_Forms_Chat
 
         // Moderator status
         public bool IsModerator { get; set; } = false;
+        
+        // ClientState property to track the client's current state (Login, Chatting, Playing)
+        public ClientState State { get; set; } = ClientState.Login;
     }
 }

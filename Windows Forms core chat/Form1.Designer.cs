@@ -398,7 +398,7 @@
             groupBox1.Controls.Add(about_btn);
             groupBox1.Controls.Add(whoAmIButton);
             groupBox1.Controls.Add(commands_btn);
-            groupBox1.Location = new System.Drawing.Point(20, 50);
+            groupBox1.Location = new System.Drawing.Point(50, 50);
             groupBox1.Name = "groupBox1";
             groupBox1.Size = new System.Drawing.Size(502, 100);
             groupBox1.TabIndex = 15;

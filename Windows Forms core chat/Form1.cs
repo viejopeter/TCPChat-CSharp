@@ -65,6 +65,8 @@ namespace Windows_Forms_Chat
                         throw new Exception("Incorrect port value!");
 
                     server.SetupServer();
+                    // Database manager instance
+                    DatabaseManager dbManager = new DatabaseManager(); 
 
                     // Update UI
                     tabToDisable = tabControl1.TabPages[1];
@@ -114,6 +116,9 @@ namespace Windows_Forms_Chat
                         throw new Exception("Incorrect port value!");
 
                     client.ConnectToServer();
+                    var loginform = new LoginForm();
+                    this.Hide();
+                    loginform.Show(); // Show the login form
 
                 }
                 catch (Exception ex)
@@ -124,6 +129,11 @@ namespace Windows_Forms_Chat
                 }
 
             }
+
+
+             // Hide the form to prevent further interaction
+
+
             // Update UI
             JoinButton.Visible = false;
             MyPortTextBox.ReadOnly = true;
