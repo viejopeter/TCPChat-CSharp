@@ -7,8 +7,11 @@ namespace Windows_Forms_Chat
     {
         //add other attributes to this, e.g username, what state the client is in etc
         public Socket socket;
+        // Size of the buffer used for receiving data
         public const int BUFFER_SIZE = 2048;
+        // Buffer for incoming data
         public byte[] buffer = new byte[BUFFER_SIZE];
+        // Username of the client
         public string username { get; set; }
         // Unique identifier for each client
         public Guid Id { get; } = Guid.NewGuid();

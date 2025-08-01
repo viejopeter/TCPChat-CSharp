@@ -12,7 +12,6 @@ namespace Windows_Forms_Chat
         TCPChatClient client = null; // Client instance
         TabPage tabToDisable; // Used to disable unused tabs (UI cleanup)
 
-
         public Form1()
         {
             InitializeComponent();

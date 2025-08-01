@@ -460,13 +460,26 @@ namespace Windows_Forms_Chat
         // Returns all connected usernames
         public string GetConnectedUsersList()
         {
+            // Check if there are any connected clients
+            if (clientSockets.Count == 0)
+                return "No users connected";
+
+            // StringBuilder is used for efficient string concatenation
             StringBuilder sb = new StringBuilder();
 
+            // Loop through each connected client
             foreach (ClientSocket c in clientSockets)
             {
-                sb.AppendLine(c.username);
+                // Only add the username if it's not null or empty
+                if (!string.IsNullOrEmpty(c.username))
+                    sb.AppendLine(c.username);
             }
-            //Return List of connected users
+
+            // If no valid usernames were added, return fallback message
+            if (string.IsNullOrWhiteSpace(sb.ToString()))
+                return "No users connected";
+
+            // Return the list of connected usernames, removing trailing newlines
             return sb.ToString().TrimEnd('\r', '\n');
         }
         // Finds a client by username
