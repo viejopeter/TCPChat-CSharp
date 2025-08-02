@@ -48,6 +48,51 @@ namespace Windows_Forms_Chat
             }
         }
 
+        // Login method: checks if username and password match
+        public string LoginUser(string username, string password)
+        {
+            string query = "SELECT password FROM Users WHERE username = @username";
+            using (SQLiteCommand command = new SQLiteCommand(query, connection))
+            {
+                command.Parameters.AddWithValue("@username", username);
+                var result = command.ExecuteScalar();
+
+                if (result == null)
+                    return "User does not exist.";
+
+                if (result.ToString() != password)
+                    return "Incorrect password.";
+
+                return "Login successful.";
+            }
+        }
+
+        // Sign up method: creates a new user after verifying uniqueness and password match
+        public string SignUpUser(string username, string password, string confirmPassword)
+        {
+            if (password != confirmPassword)
+                return "Passwords do not match.";
+
+            string checkQuery = "SELECT COUNT(*) FROM Users WHERE username = @username";
+            using (SQLiteCommand checkCmd = new SQLiteCommand(checkQuery, connection))
+            {
+                checkCmd.Parameters.AddWithValue("@username", username);
+                int exists = Convert.ToInt32(checkCmd.ExecuteScalar());
+                if (exists > 0)
+                    return "Username already exists.";
+            }
+
+            string insertQuery = "INSERT INTO Users (username, password) VALUES (@username, @password)";
+            using (SQLiteCommand insertCmd = new SQLiteCommand(insertQuery, connection))
+            {
+                insertCmd.Parameters.AddWithValue("@username", username);
+                insertCmd.Parameters.AddWithValue("@password", password);
+                insertCmd.ExecuteNonQuery();
+            }
+
+            return "Sign up successful.";
+        }
+
         // This method closes the connection to the database
         public void Close()
         {

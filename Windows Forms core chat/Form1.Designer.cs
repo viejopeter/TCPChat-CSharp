@@ -102,6 +102,7 @@
             label2.Size = new System.Drawing.Size(64, 15);
             label2.TabIndex = 2;
             label2.Text = "Server Port";
+            label2.Click += label2_Click;
             // 
             // serverPortTextBox
             // 
@@ -160,7 +161,7 @@
             // 
             // HostButton
             // 
-            HostButton.BackColor = System.Drawing.Color.LawnGreen;
+            HostButton.BackColor = System.Drawing.Color.FromArgb(192, 255, 192);
             HostButton.ForeColor = System.Drawing.SystemColors.ActiveCaptionText;
             HostButton.Location = new System.Drawing.Point(19, 86);
             HostButton.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
@@ -173,7 +174,7 @@
             // 
             // JoinButton
             // 
-            JoinButton.BackColor = System.Drawing.Color.LawnGreen;
+            JoinButton.BackColor = System.Drawing.Color.FromArgb(192, 255, 192);
             JoinButton.ForeColor = System.Drawing.SystemColors.ActiveCaptionText;
             JoinButton.Location = new System.Drawing.Point(20, 64);
             JoinButton.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
@@ -398,7 +399,7 @@
             groupBox1.Controls.Add(about_btn);
             groupBox1.Controls.Add(whoAmIButton);
             groupBox1.Controls.Add(commands_btn);
-            groupBox1.Location = new System.Drawing.Point(50, 50);
+            groupBox1.Location = new System.Drawing.Point(59, 49);
             groupBox1.Name = "groupBox1";
             groupBox1.Size = new System.Drawing.Size(502, 100);
             groupBox1.TabIndex = 15;

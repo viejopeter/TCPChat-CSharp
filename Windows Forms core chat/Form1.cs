@@ -25,7 +25,7 @@ namespace Windows_Forms_Chat
             list_users_btn_ser.Visible = false;
             button10.Visible = false;
             button11.Visible = false;
-            
+
             // Make chat textbox read only and cleaner
             ChatTextBox.ReadOnly = true;
             ChatTextBox.ReadOnly = true;
@@ -66,7 +66,7 @@ namespace Windows_Forms_Chat
 
                     server.SetupServer();
                     // Database manager instance
-                    DatabaseManager dbManager = new DatabaseManager(); 
+                    DatabaseManager dbManager = new DatabaseManager();
 
                     // Update UI
                     tabToDisable = tabControl1.TabPages[1];
@@ -107,6 +107,7 @@ namespace Windows_Forms_Chat
             {
                 try
                 {
+
                     int port = int.Parse(MyPortTextBox.Text);
                     int serverPort = int.Parse(serverPortTextBox.Text);
                     client = TCPChatClient.CreateInstance(port, serverPort, ServerIPTextBox.Text, ChatTextBox, username_txt.Text);
@@ -116,10 +117,40 @@ namespace Windows_Forms_Chat
                         throw new Exception("Incorrect port value!");
 
                     client.ConnectToServer();
-                    var loginform = new LoginForm();
-                    this.Hide();
-                    loginform.Show(); // Show the login form
 
+                    // Hide Form1 before opening LoginForm
+                    this.Hide();
+
+                    // Open LoginForm as a modal
+                    var loginForm = new LoginForm(client);
+                    var result = loginForm.ShowDialog();  // Blocks until LoginForm is closed
+
+                    if (result == DialogResult.OK)
+                    {
+
+                        // Update UI as per the login success
+                        JoinButton.Visible = false;
+                        MyPortTextBox.ReadOnly = true;
+                        label1.Visible = true;
+
+                        lb_username.Visible = true;
+                        username_txt.Visible = true;
+                        change_username_btn.Visible = true;
+                        groupBox1.Visible = true;
+
+                        tabToDisable = tabControl1.TabPages[0];
+                        tabControl1.TabPages.Remove(tabToDisable);
+
+                        TypeTextBox.Focus();
+
+                        // If you want to re-show the Form1, do it after the login
+                        this.Show();
+                    }
+                    else
+                    {
+                        // If LoginForm was closed or login failed, close the application
+                        Application.Exit();
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -127,29 +158,7 @@ namespace Windows_Forms_Chat
                     ChatTextBox.Text += "Error: " + ex;
                     ChatTextBox.AppendText(Environment.NewLine);
                 }
-
             }
-
-
-             // Hide the form to prevent further interaction
-
-
-            // Update UI
-            JoinButton.Visible = false;
-            MyPortTextBox.ReadOnly = true;
-            label1.Visible = true;
-
-            lb_username.Visible = true;
-            username_txt.Visible = true;
-            change_username_btn.Visible = true;
-            groupBox1.Visible = true;
-
-
-            //Disable Tab Server
-            tabToDisable = tabControl1.TabPages[0];
-            tabControl1.TabPages.Remove(tabToDisable);
-
-            TypeTextBox.Focus();
         }
         // Change username (client sends command to server)
         private void change_username_btn_Click(object sender, EventArgs e)
@@ -370,5 +379,9 @@ namespace Windows_Forms_Chat
             ChatTextBox.Clear();
         }
 
+        private void label2_Click(object sender, EventArgs e)
+        {
+
+        }
     }
 }
