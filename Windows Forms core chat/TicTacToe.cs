@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Text;
 using System.Windows.Forms;
 
 namespace Windows_Forms_Chat
@@ -25,14 +24,46 @@ namespace Windows_Forms_Chat
 
         public string GridToString()
         {
-            string s = "";
-            //TODO convert values on board to a string e.g "xox___x_o"
-
-            return s;
+            char[] chars = new char[9];
+            for (int i = 0; i < 9; i++)
+            {
+                switch (grid[i])
+                {
+                    case TileType.cross:
+                        chars[i] = 'x';
+                        break;
+                    case TileType.naught:
+                        chars[i] = 'o';
+                        break;
+                    default:
+                        chars[i] = '_';
+                        break;
+                }
+            }
+            return new string(chars);
         }
         public void StringToGrid(string s)
         {
             //TODO take string s e.g "xox___x_o" and use its values to update grid and the buttons
+            for (int i = 0; i < Math.Min(s.Length, 9); i++)
+            {
+                switch (s[i])
+                {
+                    case 'x':
+                    case 'X':
+                        grid[i] = TileType.cross;
+                        break;
+                    case 'o':
+                    case 'O':
+                        grid[i] = TileType.naught;
+                        break;
+                    default:
+                        grid[i] = TileType.blank;
+                        break;
+                }
+                if (buttons.Count >= 9)
+                    buttons[i].Text = TileTypeToString(grid[i]);
+            }
         }
 
         public bool SetTile(int index, TileType tileType)

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Data.SQLite;
 using System.IO;
 using System.Reflection.Metadata;
@@ -152,6 +153,88 @@ namespace Windows_Forms_Chat
             {
                 // Execute the update command
                 command.ExecuteNonQuery(); // This logs out all users
+            }
+        }
+
+        // Increments the 'wins' count for the specified user in the Users table
+        public void AddWin(string username)
+        {
+            string query = "UPDATE Users SET wins = wins + 1 WHERE username = @username";
+            using (SQLiteCommand command = new SQLiteCommand(query, connection))
+            {
+                command.Parameters.AddWithValue("@username", username);
+                command.ExecuteNonQuery(); // Executes the update query
+            }
+        }
+
+        // Increments the 'losses' count for the specified user in the Users table
+        public void AddLoss(string username)
+        {
+            string query = "UPDATE Users SET losses = losses + 1 WHERE username = @username";
+            using (SQLiteCommand command = new SQLiteCommand(query, connection))
+            {
+                command.Parameters.AddWithValue("@username", username);
+                command.ExecuteNonQuery(); // Executes the update query
+            }
+        }
+
+        // Increments the 'draws' count for the specified user in the Users table
+        public void AddDraw(string username)
+        {
+            string query = "UPDATE Users SET draws = draws + 1 WHERE username = @username";
+            using (SQLiteCommand command = new SQLiteCommand(query, connection))
+            {
+                command.Parameters.AddWithValue("@username", username);
+                command.ExecuteNonQuery(); // Executes the update query
+            }
+        }
+
+        // Retrieves all user scores sorted by: highest wins first, then highest draws, then lowest losses
+        public List<(string Username, int Wins, int Draws, int Losses)> GetAllScoresSorted()
+        {
+            var scores = new List<(string, int, int, int)>();
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = "SELECT username, wins, draws, losses FROM Users ORDER BY wins DESC, draws DESC, losses ASC";
+                using (var reader = cmd.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        string username = reader.GetString(0);
+                        int wins = reader.GetInt32(1);
+                        int draws = reader.GetInt32(2);
+                        int losses = reader.GetInt32(3);
+                        scores.Add((username, wins, draws, losses)); // Adds the user's score to the list
+                    }
+                }
+            }
+            return scores; // Returns the sorted list of scores
+        }
+
+        // Updates a user's username in the Users table
+        public void UpdateUsername(string oldUsername, string newUsername)
+        {
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = "UPDATE Users SET username = @newUsername WHERE username = @oldUsername";
+                cmd.Parameters.AddWithValue("@newUsername", newUsername);
+                cmd.Parameters.AddWithValue("@oldUsername", oldUsername);
+                cmd.ExecuteNonQuery(); // Executes the update query
+            }
+        }
+
+        // Checks whether a given username already exists in the Users table
+        public bool UsernameExists(string username)
+        {
+            // Create a new SQL command using the active database connection
+            using (var cmd = connection.CreateCommand())
+            {
+                // SQL query to count how many users have the specified username
+                cmd.CommandText = "SELECT COUNT(*) FROM Users WHERE username = @username";
+                cmd.Parameters.AddWithValue("@username", username);
+
+                // Execute the query and return true if one or more users match the username
+                return Convert.ToInt32(cmd.ExecuteScalar()) > 0;
             }
         }
     }

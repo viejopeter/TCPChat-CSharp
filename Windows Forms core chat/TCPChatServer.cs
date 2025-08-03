@@ -16,6 +16,15 @@ namespace Windows_Forms_Chat
         public List<ClientSocket> clientSockets = new List<ClientSocket>();// List of connected clients
         string lsConnectedUsers = "";
 
+        private ClientSocket player1 = null;
+        private ClientSocket player2 = null;
+        private ClientSocket currentTurn = null;
+        private TicTacToe serverTicTacToe = new TicTacToe();
+        private bool gameInProgress = false;
+
+        private TileType player1Tile = TileType.cross;
+        private TileType player2Tile = TileType.naught;
+
         // Factory method to create server instance with a port and UI text box
         public static TCPChatServer createInstance(int port, TextBox chatTextBox)
         {
@@ -100,10 +109,58 @@ namespace Windows_Forms_Chat
             }
             catch (SocketException)
             {
-                //Update the database to log out the user
+                // Update the database to log out the user
                 db.LogoutUser(currentClientSocket.username);
+
+                // --- Handle Tic Tac Toe disconnection logic ---
+                if (gameInProgress && (currentClientSocket == player1 || currentClientSocket == player2))
+                {
+                    // Existing logic for in-game disconnect (already in your code)
+                    ClientSocket winner = null;
+                    ClientSocket loser = currentClientSocket;
+
+                    if (currentClientSocket == player1 && player2 != null)
+                        winner = player2;
+                    else if (currentClientSocket == player2 && player1 != null)
+                        winner = player1;
+
+                    if (winner != null)
+                    {
+                        winner.socket.Send(Encoding.ASCII.GetBytes("!win\n"));
+                        winner.socket.Send(Encoding.ASCII.GetBytes("Opponent disconnected. You win by default.\n"));
+                        db.AddWin(winner.username);
+                        foreach (var c in clientSockets)
+                        {
+                            c.socket.Send(Encoding.ASCII.GetBytes("!chatstate\n"));
+                        }
+                        winner.State = ClientState.Chatting;
+                    }
+
+                    if (loser != null)
+                    {
+                        db.AddLoss(loser.username);
+                    }
+
+                    gameInProgress = false;
+                    player1 = null;
+                    player2 = null;
+                    currentTurn = null;
+                    serverTicTacToe.ResetBoard();
+                }
+                // --- Handle waiting-for-game disconnect ---
+                else if (!gameInProgress)
+                {
+                    if (currentClientSocket == player1)
+                    {
+                        player1 = null;
+                    }
+                    else if (currentClientSocket == player2)
+                    {
+                        player2 = null;
+                    }
+                }
+
                 AddToChat("Client forcefully disconnected");
-                // Don't shutdown because the socket may be disposed and its disconnected anyway.
                 currentClientSocket.socket.Close();
                 clientSockets.Remove(currentClientSocket);
                 return;
@@ -130,15 +187,19 @@ namespace Windows_Forms_Chat
             }
             else if (cmd == "!username")
             {
-
+                // Check if username exists among connected clients (except self)
                 bool existUsername = clientSockets.Any(otherClient =>
-                                        otherClient != currentClientSocket &&
-                                        otherClient.username.Equals(targetUsername, StringComparison.OrdinalIgnoreCase));
+                    otherClient != currentClientSocket &&
+                    otherClient.username.Equals(targetUsername, StringComparison.OrdinalIgnoreCase));
 
-                if (existUsername)
+                // Check if username exists in the database (except self)
+                bool existInDb = db.UsernameExists(targetUsername) &&
+                                 !currentClientSocket.username.Equals(targetUsername, StringComparison.OrdinalIgnoreCase);
+
+                if (existUsername || existInDb)
                 {
                     // Send the information to the client
-                    byte[] rejection = Encoding.ASCII.GetBytes("Username already taken");
+                    byte[] rejection = Encoding.ASCII.GetBytes("Username already taken\n");
                     currentClientSocket.socket.Send(rejection);
 
                     //Update the database to log out the user
@@ -165,10 +226,14 @@ namespace Windows_Forms_Chat
                     {
                         oldUsername = currentClientSocket.username;
                         currentClientSocket.username = targetUsername;
+
+                        // Update username in the database
+                        db.UpdateUsername(oldUsername, targetUsername);
+
                         formattedMessage = $"User '{oldUsername}' changed username to '{targetUsername}' successfully";
 
                         // Send the information to the client
-                        byte[] data = Encoding.ASCII.GetBytes("Username accepted successfully");
+                        byte[] data = Encoding.ASCII.GetBytes("Username accepted successfully\n");
                         currentClientSocket.socket.Send(data);
                         // Log in server UI
                         AddToChat(formattedMessage);
@@ -296,7 +361,7 @@ namespace Windows_Forms_Chat
             else if (cmd == "!clear")
             {
                 // Send a special signal to the client so it knows to clear the chat
-                currentClientSocket.socket.Send(Encoding.ASCII.GetBytes("!clear_chat"));
+                currentClientSocket.socket.Send(Encoding.ASCII.GetBytes("!clear_chat\n"));
 
                 // Log on server UI
                 AddToChat($"{messageLogServer} used !clear command");
@@ -380,6 +445,18 @@ namespace Windows_Forms_Chat
                 currentClientSocket.socket.Send(data);
                 AddToChat($"{messageLogServer} used !time command");
             }
+            else if (cmd == "!scores")
+            {
+                var scores = db.GetAllScoresSorted();
+                StringBuilder sb = new StringBuilder();
+                sb.AppendLine("Username\tWins\tDraws\tLosses");
+                foreach (var (username, wins, draws, losses) in scores)
+                {
+                    sb.AppendLine($"{username}\t{wins}\t{draws}\t{losses}");
+                }
+                currentClientSocket.socket.Send(Encoding.ASCII.GetBytes(sb.ToString()));
+                AddToChat($"{messageLogServer} requested the scores.");
+            }
             else if (cmd == "!login")
             {
                 // Example: targetUsername = "username=Pedro;state=Chatting"
@@ -410,6 +487,143 @@ namespace Windows_Forms_Chat
                         }
                     }
                     AddToChat($"[Server Log] Successfully login User: {currentClientSocket.username}, now is in {currentClientSocket.State} state ");
+                }
+            }
+            else if (cmd == "!join")
+            {
+                if (!gameInProgress)
+                {
+                    if (player1 == null)
+                    {
+                        player1 = currentClientSocket;
+                        player1.State = ClientState.Playing;
+                        player1Tile = TileType.cross;
+                        currentClientSocket.socket.Send(Encoding.ASCII.GetBytes("!player1\n"));
+                    }
+                    else if (player2 == null && currentClientSocket != player1)
+                    {
+                        player2 = currentClientSocket;
+                        player2.State = ClientState.Playing;
+                        player2Tile = TileType.naught;
+                        currentClientSocket.socket.Send(Encoding.ASCII.GetBytes("!player2\n"));
+
+                        // Start the game
+                        gameInProgress = true;
+                        currentTurn = player1;
+                        player1.socket.Send(Encoding.ASCII.GetBytes("!yourturn\n"));
+                        player2.socket.Send(Encoding.ASCII.GetBytes("!wait\n"));
+                    }
+                    else
+                    {
+                        currentClientSocket.socket.Send(Encoding.ASCII.GetBytes("Game is full or already started."));
+                    }
+                }
+                else
+                {
+                    currentClientSocket.socket.Send(Encoding.ASCII.GetBytes("Game already in progress."));
+                }
+            }
+            else if (cmd == "!move")
+            {
+                if (gameInProgress && currentClientSocket == currentTurn)
+                {
+                    if (int.TryParse(targetUsername, out int moveIndex))
+                    {
+                        // Update serverTicTacToe grid
+                        var tileType = (currentTurn == player1) ? TileType.cross : TileType.naught;
+                        bool valid = serverTicTacToe.SetTile(moveIndex, tileType);
+                        if (valid)
+                        {
+                            // Broadcast new board state to both players
+                            string boardState = serverTicTacToe.GridToString();
+                            foreach (var c in clientSockets)
+                            {
+                                c.socket.Send(Encoding.ASCII.GetBytes("!board " + boardState + "\n"));
+                            }
+
+                            // Check for win/draw
+                            GameState gs = serverTicTacToe.GetGameState();
+                            if (gs == GameState.crossWins || gs == GameState.naughtWins || gs == GameState.draw)
+                            {
+                                // Update scores in the database
+                                string winner = null, loser = null;
+                                if (gs == GameState.crossWins)
+                                {
+                                    // The player with TileType.cross is the winner
+                                    if (player1Tile == TileType.cross)
+                                    {
+                                        winner = player1.username;
+                                        loser = player2.username;
+                                        player1.socket.Send(Encoding.ASCII.GetBytes("!win\n"));
+                                        player2.socket.Send(Encoding.ASCII.GetBytes("!lose\n"));
+                                    }
+                                    else
+                                    {
+                                        winner = player2.username;
+                                        loser = player1.username;
+                                        player2.socket.Send(Encoding.ASCII.GetBytes("!win\n"));
+                                        player1.socket.Send(Encoding.ASCII.GetBytes("!lose\n"));
+                                    }
+                                }
+                                else if (gs == GameState.naughtWins)
+                                {
+                                    // The player with TileType.naught is the winner
+                                    if (player1Tile == TileType.naught)
+                                    {
+                                        winner = player1.username;
+                                        loser = player2.username;
+                                        player1.socket.Send(Encoding.ASCII.GetBytes("!win\n"));
+                                        player2.socket.Send(Encoding.ASCII.GetBytes("!lose\n"));
+                                    }
+                                    else
+                                    {
+                                        winner = player2.username;
+                                        loser = player1.username;
+                                        player2.socket.Send(Encoding.ASCII.GetBytes("!win\n"));
+                                        player1.socket.Send(Encoding.ASCII.GetBytes("!lose\n"));
+                                    }
+                                }
+                                else // draw
+                                {
+                                    player1.socket.Send(Encoding.ASCII.GetBytes("!draw\n"));
+                                    player2.socket.Send(Encoding.ASCII.GetBytes("!draw\n"));
+                                }
+
+                                if (gs == GameState.crossWins || gs == GameState.naughtWins)
+                                {
+                                    db.AddWin(winner);
+                                    db.AddLoss(loser);
+                                }
+                                else if (gs == GameState.draw)
+                                {
+                                    db.AddDraw(player1.username);
+                                    db.AddDraw(player2.username);
+                                }
+
+                                // Inform players to return to chat state
+                                foreach (var c in clientSockets)
+                                {
+                                    c.socket.Send(Encoding.ASCII.GetBytes("!chatstate\n"));
+                                }
+
+                                // Reset game state
+                                gameInProgress = false;
+                                player1.State = ClientState.Chatting;
+                                player2.State = ClientState.Chatting;
+                                player1 = null;
+                                player2 = null;
+                                currentTurn = null;
+                                serverTicTacToe.ResetBoard();
+                            }
+                            else
+                            {
+                                // Switch turn
+                                currentTurn = (currentTurn == player1) ? player2 : player1;
+                                currentTurn.socket.Send(Encoding.ASCII.GetBytes("!yourturn\n"));
+                                (currentTurn == player1 ? player2 : player1).socket.Send(Encoding.ASCII.GetBytes("!wait\n"));
+                            }
+                        }
+                    }
                 }
             }
             else

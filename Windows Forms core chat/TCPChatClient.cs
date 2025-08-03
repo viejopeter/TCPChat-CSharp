@@ -12,13 +12,13 @@ namespace Windows_Forms_Chat
         
         // Wrapper class holding socket and client
         public ClientSocket clientSocket = new ClientSocket();
-
+        public Form1 mainForm;
 
         public int serverPort;
         public string serverIP;
 
         // Factory method to create an instance of the client with proper setup
-        public static TCPChatClient CreateInstance(int port, int serverPort, string serverIP, TextBox chatTextBox, string username_txt)
+        public static TCPChatClient CreateInstance(int port, int serverPort, string serverIP, TextBox chatTextBox, string username_txt, Form1 form)
         {
             TCPChatClient tcp = null;
             // Validate ports and IP, and ensure chatTextBox is not null
@@ -35,6 +35,7 @@ namespace Windows_Forms_Chat
                 tcp.clientSocket.socket = tcp.socket;
                 tcp.clientSocket.username = username_txt;
                 tcp.clientSocket.State = ClientState.Login; // Set initial state login
+                tcp.mainForm = form; // Store the reference
 
             }
 
@@ -100,25 +101,80 @@ namespace Windows_Forms_Chat
             string text = Encoding.ASCII.GetString(recBuf);
             Console.WriteLine("Received Text: " + text);
 
-            // Handle specific server commands or response
-            if (text == "!clear_chat")
+            // Split by newline to handle multiple commands in one receive
+            string[] commands = text.Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            foreach (var cmdRaw in commands)
             {
-                // Clear the chat UI from the client side
-                chatTextBox.Invoke((Action)(() => chatTextBox.Clear()));
-                AddToChat("Chat has been cleared.");
-            }
-            else if (text == "Username already taken")
-            {
-                MessageBox.Show("Username already exists. You will be disconnected.", "Username Conflict", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-            else if (text == "Username accepted successfully")
-            {
-                MessageBox.Show("Username changed successfully!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            }
-            else
-            {
-                // General message received from server
-                AddToChat(text);
+                string cmd = cmdRaw.Trim();
+                // Handle specific server commands or response
+                if (cmd == "!clear_chat")
+                {
+                    // Clear the chat UI from the client side
+                    chatTextBox.Invoke((Action)(() => chatTextBox.Clear()));
+                    AddToChat("Chat has been cleared.");
+                }
+                else if (cmd == "Username already taken")
+                {
+                    MessageBox.Show("Username already exists. You will be disconnected.", "Username Conflict", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+                else if (cmd == "Username accepted successfully")
+                {
+                    MessageBox.Show("Username changed successfully!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                else if (cmd == "!player1")
+                {
+                    clientSocket.State = ClientState.Playing;
+                    AddToChat("Welcome to Tic Tac Toe game: You are player 1");
+                    // Store locally: you are player 1 (e.g., cross)
+                }
+                else if (cmd == "!player2")
+                {
+                    clientSocket.State = ClientState.Playing;
+                    AddToChat("Welcome to Tic Tac Toe game: You are player 2");
+                    // Store locally: you are player 2 (e.g., naught)
+                }
+                else if (cmd == "!yourturn")
+                {
+                    clientSocket.State = ClientState.Playing;
+                    AddToChat("[Game] It's your turn!");
+                    mainForm?.Invoke((Action)(() => mainForm.EnableTicTacToeBoard()));
+
+                }
+                else if (cmd == "!wait")
+                {
+                    AddToChat("[Game] Wait for your turn...");
+                    mainForm?.Invoke((Action)(() => mainForm.DisableTicTacToeBoard()));
+
+                }
+                else if (cmd.StartsWith("!board "))
+                {
+                    string boardState = text.Substring(7);
+                    mainForm?.Invoke((Action)(() => mainForm.UpdateTicTacToeBoard(boardState)));
+                }
+                else if (cmd == "!win")
+                {
+                    AddToChat("[Game] You won the game!");
+                }
+                else if (cmd == "!lose")
+                {
+                    AddToChat("[Game] You lost the game.");
+                }
+                else if (cmd == "!draw")
+                {
+                    AddToChat("[Game] The game is a draw.");
+                }
+                else if (cmd == "!chatstate")
+                {
+                    clientSocket.State = ClientState.Chatting;
+                    mainForm?.Invoke((Action)(() => mainForm.DisableTicTacToeBoard()));
+                    //Reset the local board
+                    mainForm?.Invoke((Action)(() => mainForm.UpdateTicTacToeBoard("_________")));
+                }
+                else
+                {
+                    // General message received from server
+                    AddToChat(cmd);
+                }
             }
 
             // Continue listening for more data from the server

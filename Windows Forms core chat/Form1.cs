@@ -5,6 +5,8 @@ using System.Windows.Forms;
 
 namespace Windows_Forms_Chat
 {
+
+
     public partial class Form1 : Form
     {
         TicTacToe ticTacToe = new TicTacToe(); // Tic Tac Toe game logic
@@ -68,7 +70,7 @@ namespace Windows_Forms_Chat
                     DatabaseManager dbManager = new DatabaseManager();
 
                     // Update UI
-                    this.Size = new Size(686, 590);
+                    this.Size = new Size(811, 632);
 
                     tabToDisable = tabControl1.TabPages[1];
                     tabControl1.TabPages.Remove(tabToDisable);
@@ -111,8 +113,7 @@ namespace Windows_Forms_Chat
 
                     int port = int.Parse(MyPortTextBox.Text);
                     int serverPort = int.Parse(serverPortTextBox.Text);
-                    client = TCPChatClient.CreateInstance(port, serverPort, ServerIPTextBox.Text, ChatTextBox, username_txt.Text);
-
+                    client = TCPChatClient.CreateInstance(port, serverPort, ServerIPTextBox.Text, ChatTextBox, username_txt.Text, this);
                     if (client == null)
                         //thrown exceptions should exit the try and land in next catch
                         throw new Exception("Incorrect port value!");
@@ -130,7 +131,7 @@ namespace Windows_Forms_Chat
                     {
 
                         // Update UI as per the login success
-                        this.Size = new Size(1047, 590);
+                        this.Size = new Size(1228, 623);
 
                         JoinButton.Visible = false;
                         MyPortTextBox.ReadOnly = true;
@@ -219,6 +220,7 @@ namespace Windows_Forms_Chat
         // On form load, initialize Tic Tac Toe buttons
         private void Form1_Load(object sender, EventArgs e)
         {
+            
             //On form loaded
             ticTacToe.buttons.Add(button1);
             ticTacToe.buttons.Add(button2);
@@ -230,17 +232,35 @@ namespace Windows_Forms_Chat
             ticTacToe.buttons.Add(button8);
             ticTacToe.buttons.Add(button9);
             ServerIPTextBox.Focus();
+            DisableTicTacToeBoard();
         }
         // Attempt a move in Tic Tac Toe
         private void AttemptMove(int i)
         {
             if (ticTacToe.myTurn)
             {
+                // Prevent move if not your turn
+                if (!ticTacToe.myTurn)
+                    return;
+
+                // Prevent move if tile is already marked
+                if (ticTacToe.grid[i] != TileType.blank)
+                {
+                    MessageBox.Show("This tile is already marked. Choose another one.", "Invalid Move", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
                 bool validMove = ticTacToe.SetTile(i, ticTacToe.playerTileType);
                 if (validMove)
                 {
                     //tell server about it
                     //ticTacToe.myTurn = false;//call this too when ready with server
+                    // Send move to server
+                    if (client != null && client.clientSocket.State == ClientState.Playing)
+                    {
+                        client.SendString("!move " + i);
+                        ticTacToe.myTurn = false; // Prevent further moves until next turn
+                    }
                 }
                 //example, do something similar from server
                 GameState gs = ticTacToe.GetGameState();
@@ -374,15 +394,37 @@ namespace Windows_Forms_Chat
             }
         }
 
+        public void EnableTicTacToeBoard()
+        {
+            foreach (var btn in ticTacToe.buttons)
+                btn.Enabled = true;
+            ticTacToe.myTurn = true;
+        }
+
+        public void DisableTicTacToeBoard()
+        {
+            foreach (var btn in ticTacToe.buttons)
+                btn.Enabled = false;
+            ticTacToe.myTurn = false;
+        }
+        public void UpdateTicTacToeBoard(string boardState)
+        {
+            ticTacToe.StringToGrid(boardState);
+        }
         // Clear chat box
         private void clear_btn_Click(object sender, EventArgs e)
         {
             ChatTextBox.Clear();
         }
 
-        private void label2_Click(object sender, EventArgs e)
+        private void btnJoinGame_Click(object sender, EventArgs e)
         {
+            client.SendString("!join");
+        }
 
+        private void btnScores_Click(object sender, EventArgs e)
+        {
+            client.SendString("!scores");
         }
     }
 }

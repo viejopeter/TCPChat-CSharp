@@ -144,6 +144,7 @@
             // 
             // panel2
             // 
+            panel2.BackColor = System.Drawing.Color.FromArgb(192, 255, 255);
             panel2.Controls.Add(btn_switchToLogin);
             panel2.Controls.Add(btn_switchToSignUp);
             panel2.Controls.Add(lb_welcome);
