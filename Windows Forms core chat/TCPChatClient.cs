@@ -34,6 +34,7 @@ namespace Windows_Forms_Chat
                 tcp.chatTextBox = chatTextBox;
                 tcp.clientSocket.socket = tcp.socket;
                 tcp.clientSocket.username = username_txt;
+                tcp.clientSocket.State = ClientState.Login; // Set initial state login
 
             }
 

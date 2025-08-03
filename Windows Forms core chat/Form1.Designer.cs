@@ -399,7 +399,7 @@
             groupBox1.Controls.Add(about_btn);
             groupBox1.Controls.Add(whoAmIButton);
             groupBox1.Controls.Add(commands_btn);
-            groupBox1.Location = new System.Drawing.Point(59, 49);
+            groupBox1.Location = new System.Drawing.Point(20, 49);
             groupBox1.Name = "groupBox1";
             groupBox1.Size = new System.Drawing.Size(502, 100);
             groupBox1.TabIndex = 15;
@@ -565,7 +565,7 @@
             AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
             AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             BackColor = System.Drawing.Color.FromArgb(242, 242, 242);
-            ClientSize = new System.Drawing.Size(1009, 551);
+            ClientSize = new System.Drawing.Size(670, 226);
             Controls.Add(label6);
             Controls.Add(label5);
             Controls.Add(tabControl1);

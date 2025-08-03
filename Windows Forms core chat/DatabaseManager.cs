@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Data.SQLite;
 using System.IO;
+using System.Reflection.Metadata;
 
 namespace Windows_Forms_Chat
 {
@@ -38,7 +39,8 @@ namespace Windows_Forms_Chat
                 password TEXT,
                 wins INTEGER DEFAULT 0,
                 losses INTEGER DEFAULT 0,
-                draws INTEGER DEFAULT 0
+                draws INTEGER DEFAULT 0,
+                is_authenticated INTEGER NOT NULL DEFAULT 0
             );";
 
             // Run the SQL command
@@ -63,6 +65,14 @@ namespace Windows_Forms_Chat
                 if (result.ToString() != password)
                     return "Incorrect password.";
 
+                // Update is_authenticated to 1
+                string updateQuery = "UPDATE Users SET is_authenticated = 1 WHERE username = @username";
+                using (SQLiteCommand updateCmd = new SQLiteCommand(updateQuery, connection))
+                {
+                    updateCmd.Parameters.AddWithValue("@username", username);
+                    updateCmd.ExecuteNonQuery();
+                }
+
                 return "Login successful.";
             }
         }
@@ -82,7 +92,10 @@ namespace Windows_Forms_Chat
                     return "Username already exists.";
             }
 
-            string insertQuery = "INSERT INTO Users (username, password) VALUES (@username, @password)";
+            // Insert the new user into the database with is_authenticated set to 1 (automatically logged in)
+            string insertQuery = @"
+            INSERT INTO Users (username, password, is_authenticated)
+            VALUES (@username, @password, 1);";
             using (SQLiteCommand insertCmd = new SQLiteCommand(insertQuery, connection))
             {
                 insertCmd.Parameters.AddWithValue("@username", username);
@@ -97,6 +110,49 @@ namespace Windows_Forms_Chat
         public void Close()
         {
             connection?.Close();
+        }
+
+        // Method to log out a user (sets is_authenticated to 0)
+        public void LogoutUser(string username)
+        {
+            string updateQuery = "UPDATE Users SET is_authenticated = 0 WHERE username = @username";
+            // Create and execute the SQL command using the provided username
+            using (SQLiteCommand command = new SQLiteCommand(updateQuery, connection))
+            {
+                command.Parameters.AddWithValue("@username", username);
+                // Execute the update command
+                command.ExecuteNonQuery();
+            }
+        }
+
+        // Method to check if a user is currently authenticated (logged in)
+        public bool IsUserAuthenticated(string username)
+        {
+            string query = "SELECT is_authenticated FROM Users WHERE username = @username";
+            // Create and execute the SQL command using the provided username
+            using (SQLiteCommand command = new SQLiteCommand(query, connection))
+            {
+                // Add the username parameter to the command
+                command.Parameters.AddWithValue("@username", username);
+                // Execute the query and get the result
+                var result = command.ExecuteScalar();
+                // Return true if the result is not null and equals 1 (meaning authenticated), otherwise false
+                return result != null && Convert.ToInt32(result) == 1;
+            }
+        }
+
+        // Method to log out all users by resetting their is_authenticated field to 0
+        public void LogoutAllUsers()
+        {
+            // SQL query to update all rows in the Users table and set is_authenticated to 0
+            string updateQuery = "UPDATE Users SET is_authenticated = 0";
+
+            // Create and execute the SQL command
+            using (SQLiteCommand command = new SQLiteCommand(updateQuery, connection))
+            {
+                // Execute the update command
+                command.ExecuteNonQuery(); // This logs out all users
+            }
         }
     }
 }

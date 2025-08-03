@@ -15,7 +15,6 @@ namespace Windows_Forms_Chat
         public Form1()
         {
             InitializeComponent();
-
             // Hide unused elements initially
             lb_username.Visible = false;
             username_txt.Visible = false;
@@ -69,6 +68,8 @@ namespace Windows_Forms_Chat
                     DatabaseManager dbManager = new DatabaseManager();
 
                     // Update UI
+                    this.Size = new Size(686, 590);
+
                     tabToDisable = tabControl1.TabPages[1];
                     tabControl1.TabPages.Remove(tabToDisable);
                     HostButton.Visible = false;
@@ -129,6 +130,8 @@ namespace Windows_Forms_Chat
                     {
 
                         // Update UI as per the login success
+                        this.Size = new Size(1047, 590);
+
                         JoinButton.Visible = false;
                         MyPortTextBox.ReadOnly = true;
                         label1.Visible = true;
@@ -178,13 +181,11 @@ namespace Windows_Forms_Chat
         // Send message or server command
         private void SendButton_Click(object sender, EventArgs e)
         {
-
             if (string.IsNullOrWhiteSpace(TypeTextBox.Text))
             {
                 MessageBox.Show("The field chat cannot be empty.", "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 TypeTextBox.Focus();
                 return;
-
             }
             else
             {
