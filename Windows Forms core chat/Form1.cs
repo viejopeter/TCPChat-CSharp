@@ -5,8 +5,6 @@ using System.Windows.Forms;
 
 namespace Windows_Forms_Chat
 {
-
-
     public partial class Form1 : Form
     {
         TicTacToe ticTacToe = new TicTacToe(); // Tic Tac Toe game logic

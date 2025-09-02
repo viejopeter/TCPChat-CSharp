@@ -84,6 +84,7 @@
             textBox2.Name = "textBox2";
             textBox2.Size = new System.Drawing.Size(130, 23);
             textBox2.TabIndex = 3;
+            textBox2.UseSystemPasswordChar = true;
             // 
             // textBox3
             // 
@@ -91,6 +92,7 @@
             textBox3.Name = "textBox3";
             textBox3.Size = new System.Drawing.Size(130, 23);
             textBox3.TabIndex = 4;
+            textBox3.UseSystemPasswordChar = true;
             // 
             // panel1
             // 

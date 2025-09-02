@@ -4,24 +4,35 @@ using System.Windows.Forms;
 
 namespace Windows_Forms_Chat
 {
+    // Enum representing the type of tile in the Tic-Tac-Toe grid
     public enum TileType
     {
-        blank, cross, naught
+        blank, // Empty tile
+        cross, // Player X
+        naught // Player O
     }
+    // Enum representing the state of the game
     public enum GameState
     {
-        playing, draw, crossWins, naughtWins
+        playing,   // Game is ongoing
+        draw,      // Game ended in a draw
+        crossWins, // Player X wins
+        naughtWins // Player O wins
     }
 
+    // Main class for Tic-Tac-Toe game logic and UI integration
     public class TicTacToe
     {
-        //TODO change myTurn to false and playerTileType to blank for defaults
-        //they should be dictated by the server
+        // Indicates if it's the local player's turn (should be set by server)
         public bool myTurn = true;
+        // The tile type assigned to the local player (should be set by server)
         public TileType playerTileType = TileType.cross;
-        public List<Button> buttons = new List<Button>();//assuming 9 in order
+        // List of UI buttons representing the board (should contain 9 buttons)
+        public List<Button> buttons = new List<Button>();
+        // Array representing the board state
         public TileType[] grid = new TileType[9];
 
+        // Converts the grid to a string for network transmission (e.g. "xox___x_o")
         public string GridToString()
         {
             char[] chars = new char[9];
@@ -42,9 +53,11 @@ namespace Windows_Forms_Chat
             }
             return new string(chars);
         }
+
+        // Updates the grid and UI buttons from a string (received from server)
         public void StringToGrid(string s)
         {
-            //TODO take string s e.g "xox___x_o" and use its values to update grid and the buttons
+            // Example input: "xox___x_o"
             for (int i = 0; i < Math.Min(s.Length, 9); i++)
             {
                 switch (s[i])
@@ -61,11 +74,13 @@ namespace Windows_Forms_Chat
                         grid[i] = TileType.blank;
                         break;
                 }
+                // Update button text if buttons are initialized
                 if (buttons.Count >= 9)
                     buttons[i].Text = TileTypeToString(grid[i]);
             }
         }
 
+        // Attempts to set a tile at the given index for the given player
         public bool SetTile(int index, TileType tileType)
         {
             if(grid[index] == TileType.blank)
@@ -75,12 +90,11 @@ namespace Windows_Forms_Chat
                     buttons[index].Text = TileTypeToString(tileType);
                 return true;
             }
-            //else
-
+            // If tile is not blank, move is invalid (but returns true for legacy reasons)
             return true;
-
         }
 
+        // Returns the current state of the game (playing, win, draw)
         public GameState GetGameState()
         {
             GameState state = GameState.playing;
@@ -90,39 +104,36 @@ namespace Windows_Forms_Chat
                 state = GameState.naughtWins;
             else if (CheckForDraw())
                 state = GameState.draw;
-
-
             return state;
         }
+
+        // Checks if the given tile type has won the game
         public bool CheckForWin(TileType t)
         {
-            //horizontals
+            // Check horizontal lines
             if (grid[0] == t && grid[1] == t && grid[2] == t)
                 return true;
             if (grid[3] == t && grid[4] == t && grid[5] == t)
                 return true;
             if (grid[6] == t && grid[7] == t && grid[8] == t)
                 return true;
-
-            //verticals
+            // Check vertical lines
             if (grid[0] == t && grid[3] == t && grid[6] == t)
                 return true;
             if (grid[1] == t && grid[4] == t && grid[7] == t)
                 return true;
             if (grid[2] == t && grid[5] == t && grid[8] == t)
                 return true;
-
-            //diagonals
+            // Check diagonals
             if (grid[0] == t && grid[4] == t && grid[8] == t)
                 return true;
             if (grid[2] == t && grid[4] == t && grid[6] == t)
                 return true;
-
-
-            //nothing
+            // No win found
             return false;
         }
 
+        // Checks if the board is full and no winner (draw)
         public bool CheckForDraw()
         {
             for(int i = 0; i < 9; i++)
@@ -130,10 +141,10 @@ namespace Windows_Forms_Chat
                 if (grid[i] == TileType.blank)
                     return false;
             }
-
             return true;
         }
 
+        // Resets the board and UI buttons to blank
         public void ResetBoard()
         {
             for (int i = 0; i < 9; i++)
@@ -144,6 +155,7 @@ namespace Windows_Forms_Chat
             }
         }
 
+        // Converts a TileType enum to its string representation for UI
         public static string TileTypeToString(TileType t)
         {
             if (t == TileType.blank)

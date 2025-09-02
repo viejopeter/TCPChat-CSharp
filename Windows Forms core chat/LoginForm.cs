@@ -1,39 +1,45 @@
 ﻿using System;
 using System.Windows.Forms;
-using static System.Windows.Forms.DataFormats;
-using static System.Windows.Forms.VisualStyles.VisualStyleElement.Window;
 
 namespace Windows_Forms_Chat
 {
+    // LoginForm handles user authentication and registration UI logic
     public partial class LoginForm : Form
     {
+        // Database manager for user authentication and registration
         private DatabaseManager db = new DatabaseManager();
+        // Reference to the TCP chat client for sending login/signup info to server
         private TCPChatClient _client;
 
+        // Constructor: initializes the form and hides the login/signup panel
         public LoginForm(TCPChatClient client)
         {
             InitializeComponent();
             panel2.Hide();
             this._client = client;
         }
+
+        // Switches UI to login mode
         private void btn_login_Click(object sender, EventArgs e)
         {
             btn_enter.Text = "Login";
             lb_welcome.Text = "Welcome back!";
-            label3.Hide();
-            textBox3.Hide();
-            panel1.Hide();
-            panel2.Show();
+            label3.Hide(); // Hide confirm password label
+            textBox3.Hide(); // Hide confirm password textbox
+            panel1.Hide(); // Hide initial panel
+            panel2.Show(); // Show login/signup panel
 
             btn_switchToSignUp.Show();
             btn_switchToLogin.Hide();
         }
+
+        // Switches UI to sign up mode
         private void btn_signup_Click(object sender, EventArgs e)
         {
             btn_enter.Text = "Sign Up";
             lb_welcome.Text = "Welcome to the Tic Tac Toe chat!";
-            label3.Show();
-            textBox3.Show();
+            label3.Show(); // Show confirm password label
+            textBox3.Show(); // Show confirm password textbox
             panel1.Hide();
             panel2.Show();
 
@@ -41,6 +47,7 @@ namespace Windows_Forms_Chat
             btn_switchToLogin.Show();
         }
 
+        // Handles login or sign up when user clicks enter
         private void btn_enter_Click(object sender, EventArgs e)
         {
             string username = textBox1.Text.Trim();      // Username textbox
@@ -66,7 +73,7 @@ namespace Windows_Forms_Chat
                     {
                         // Set the dialog result to OK to signal success to the main form
                         this.DialogResult = DialogResult.OK;
-                         // Notify the server that the user has logged in, including their username and chat state
+                        // Notify the server that the user has logged in, including their username and chat state
                         _client.SendString("!login username=" + username + ";state=" + ClientState.Chatting);
                         // Close the login form and return control to Form1
                         this.Close(); 
@@ -142,6 +149,8 @@ namespace Windows_Forms_Chat
                 }
             }
         }
+
+        // Switches UI to sign up mode and clears fields
         private void btn_switchToSignUp_Click(object sender, EventArgs e)
         {
             textBox1.Text = ""; // Clear username textbox
@@ -149,6 +158,7 @@ namespace Windows_Forms_Chat
             btn_signup_Click(sender, e);
         }
 
+        // Switches UI to login mode and clears fields
         private void btn_switchToLogin_Click(object sender, EventArgs e)
         {
             textBox1.Text = ""; // Clear username textbox
@@ -156,6 +166,8 @@ namespace Windows_Forms_Chat
             textBox3.Text = ""; // Clear password textbox
             btn_login_Click(sender, e);
         }
+
+        // Handles form close event: exits app if login/signup not successful
         private void LoginForm_FormClosed(object sender, FormClosedEventArgs e)
         {
             // If LoginForm is closed without success, exit the application

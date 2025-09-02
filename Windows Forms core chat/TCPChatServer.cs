@@ -8,37 +8,39 @@ using System.Windows.Forms;
 
 namespace Windows_Forms_Chat
 {
+    // Main server class for chat and Tic-Tac-Toe game management
     public class TCPChatServer : TCPChatBase
     {
-
+        // Database manager for user authentication and score tracking
         private DatabaseManager db = new DatabaseManager();
+        // Main server socket
         public Socket serverSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-        public List<ClientSocket> clientSockets = new List<ClientSocket>();// List of connected clients
+        // List of all connected clients
+        public List<ClientSocket> clientSockets = new List<ClientSocket>();
+        // String for connected users (used for display)
         string lsConnectedUsers = "";
 
-        private ClientSocket player1 = null;
-        private ClientSocket player2 = null;
-        private ClientSocket currentTurn = null;
-        private TicTacToe serverTicTacToe = new TicTacToe();
-        private bool gameInProgress = false;
-
-        private TileType player1Tile = TileType.cross;
-        private TileType player2Tile = TileType.naught;
+        // Tic-Tac-Toe game state
+        private ClientSocket player1 = null; // Player 1 socket
+        private ClientSocket player2 = null; // Player 2 socket
+        private ClientSocket currentTurn = null; // Whose turn is it
+        private TicTacToe serverTicTacToe = new TicTacToe(); // Server-side board
+        private bool gameInProgress = false; // Is a game running?
+        private TileType player1Tile = TileType.cross; // Player 1's tile type
+        private TileType player2Tile = TileType.naught; // Player 2's tile type
 
         // Factory method to create server instance with a port and UI text box
         public static TCPChatServer createInstance(int port, TextBox chatTextBox)
         {
             TCPChatServer tcp = null;
-            //setup if port within range and valid chat box given
+            // Setup if port within range and valid chat box given
             if (port > 0 && port < 65535 && chatTextBox != null)
             {
                 tcp = new TCPChatServer();
                 tcp.port = port;
                 tcp.chatTextBox = chatTextBox;
-
             }
-
-            //return empty if user not enter useful details
+            // Return empty if user did not enter useful details
             return tcp;
         }
 
@@ -47,8 +49,8 @@ namespace Windows_Forms_Chat
         {
             chatTextBox.Text += "Setting up server..." + Environment.NewLine;
             serverSocket.Bind(new IPEndPoint(IPAddress.Any, port));
-            serverSocket.Listen(0);// Start listening for connections
-            serverSocket.BeginAccept(AcceptCallback, this);// Accept first client
+            serverSocket.Listen(0); // Start listening for connections
+            serverSocket.BeginAccept(AcceptCallback, this); // Accept first client
             chatTextBox.Text += "Server setup complete " + Environment.NewLine;
             // Log out all users in the database
             db.LogoutAllUsers();
@@ -67,11 +69,11 @@ namespace Windows_Forms_Chat
             clientSockets.Clear();
             serverSocket.Close();
         }
+
         // Callback for new client connection
         public void AcceptCallback(IAsyncResult AR)
         {
             Socket joiningSocket;
-
             try
             {
                 joiningSocket = serverSocket.EndAccept(AR);
@@ -84,46 +86,39 @@ namespace Windows_Forms_Chat
             ClientSocket newClientSocket = new ClientSocket();
             newClientSocket.socket = joiningSocket;
             newClientSocket.username = $"User-{newClientSocket.ShortId}";
-
             clientSockets.Add(newClientSocket);
             // Start listening for incoming data from this client
             joiningSocket.BeginReceive(newClientSocket.buffer, 0, ClientSocket.BUFFER_SIZE, SocketFlags.None, ReceiveCallback, newClientSocket);
             AddToChat("Client connected, waiting for request...");
-
-
-            serverSocket.BeginAccept(AcceptCallback, null);// Continue accepting more clients
+            // Continue accepting more clients
+            serverSocket.BeginAccept(AcceptCallback, null);
         }
+
         // Handles received messages and commands from a client
         public void ReceiveCallback(IAsyncResult AR)
         {
             ClientSocket currentClientSocket = (ClientSocket)AR.AsyncState;
-
             int received;
             string oldUsername = "";
             string formattedMessage = "";
-
-
             try
             {
                 received = currentClientSocket.socket.EndReceive(AR);
             }
             catch (SocketException)
             {
-                // Update the database to log out the user
+                // Handle client disconnect and update database
                 db.LogoutUser(currentClientSocket.username);
-
-                // --- Handle Tic Tac Toe disconnection logic ---
+                // Handle Tic-Tac-Toe disconnect logic
                 if (gameInProgress && (currentClientSocket == player1 || currentClientSocket == player2))
                 {
-                    // Existing logic for in-game disconnect (already in your code)
+                    // If a player disconnects during a game, award win to the other
                     ClientSocket winner = null;
                     ClientSocket loser = currentClientSocket;
-
                     if (currentClientSocket == player1 && player2 != null)
                         winner = player2;
                     else if (currentClientSocket == player2 && player1 != null)
                         winner = player1;
-
                     if (winner != null)
                     {
                         winner.socket.Send(Encoding.ASCII.GetBytes("!win\n"));
@@ -135,19 +130,18 @@ namespace Windows_Forms_Chat
                         }
                         winner.State = ClientState.Chatting;
                     }
-
                     if (loser != null)
                     {
                         db.AddLoss(loser.username);
                     }
-
+                    // Reset game state
                     gameInProgress = false;
                     player1 = null;
                     player2 = null;
                     currentTurn = null;
                     serverTicTacToe.ResetBoard();
                 }
-                // --- Handle waiting-for-game disconnect ---
+                // Handle waiting-for-game disconnect
                 else if (!gameInProgress)
                 {
                     if (currentClientSocket == player1)
@@ -159,58 +153,45 @@ namespace Windows_Forms_Chat
                         player2 = null;
                     }
                 }
-
                 AddToChat("Client forcefully disconnected");
                 currentClientSocket.socket.Close();
                 clientSockets.Remove(currentClientSocket);
                 return;
             }
-
+            // Parse received data
             byte[] recBuf = new byte[received];
             Array.Copy(currentClientSocket.buffer, recBuf, received);
             string text = Encoding.ASCII.GetString(recBuf);
             string[] parts = text.Trim().Split(' ', 2);
-            // Ensure the command is not empty
-            string cmd = parts[0].ToLower();
-            // Extract the parameter if it exists
-            string targetUsername = parts.Length > 1 ? parts[1].Trim() : null;
-
+            string cmd = parts[0].ToLower(); // Command
+            string targetUsername = parts.Length > 1 ? parts[1].Trim() : null; // Parameter
             string messageLogServer = $"[Server Log] User '{currentClientSocket.username}'";
 
+            // Handle chat/game commands
             if (cmd == "!commands")
             {
-                // Send the information to the client
+                // Send list of commands to client
                 byte[] data = Encoding.ASCII.GetBytes("Commands are !commands !about !who !whoami !username !whisper !help !clear !kick !exit ");
                 currentClientSocket.socket.Send(data);
-                // Log in server UI
                 AddToChat($"{messageLogServer} requested the list of commands.");
             }
             else if (cmd == "!username")
             {
-                // Check if username exists among connected clients (except self)
+                // Handle username change and validation
                 bool existUsername = clientSockets.Any(otherClient =>
                     otherClient != currentClientSocket &&
                     otherClient.username.Equals(targetUsername, StringComparison.OrdinalIgnoreCase));
-
-                // Check if username exists in the database (except self)
                 bool existInDb = db.UsernameExists(targetUsername) &&
                                  !currentClientSocket.username.Equals(targetUsername, StringComparison.OrdinalIgnoreCase);
-
                 if (existUsername || existInDb)
                 {
-                    // Send the information to the client
                     byte[] rejection = Encoding.ASCII.GetBytes("Username already taken\n");
                     currentClientSocket.socket.Send(rejection);
-
-                    //Update the database to log out the user
                     db.LogoutUser(currentClientSocket.username);
-                    // Always Shutdown before closing
                     currentClientSocket.socket.Shutdown(SocketShutdown.Both);
                     currentClientSocket.socket.Close();
                     clientSockets.Remove(currentClientSocket);
-                    // Log in server UI
                     AddToChat($"{messageLogServer} was disconnected for trying to use an existing username: '{targetUsername}'");
-                    //normal message broadcast out to all clients
                     SendToAll($"User {currentClientSocket.username} was disconnected", currentClientSocket);
                     return;
                 }
@@ -218,7 +199,6 @@ namespace Windows_Forms_Chat
                 {
                     if (currentClientSocket.username == targetUsername)
                     {
-                        // Send the information to the client
                         byte[] sameNameMessage = Encoding.ASCII.GetBytes("You're already using this username.");
                         currentClientSocket.socket.Send(sameNameMessage);
                     }
@@ -226,18 +206,11 @@ namespace Windows_Forms_Chat
                     {
                         oldUsername = currentClientSocket.username;
                         currentClientSocket.username = targetUsername;
-
-                        // Update username in the database
                         db.UpdateUsername(oldUsername, targetUsername);
-
                         formattedMessage = $"User '{oldUsername}' changed username to '{targetUsername}' successfully";
-
-                        // Send the information to the client
                         byte[] data = Encoding.ASCII.GetBytes("Username accepted successfully\n");
                         currentClientSocket.socket.Send(data);
-                        // Log in server UI
                         AddToChat(formattedMessage);
-                        //normal message broadcast out to all clients
                         SendToAll(formattedMessage, currentClientSocket);
                     }
                 }
@@ -245,27 +218,18 @@ namespace Windows_Forms_Chat
             else if (cmd == "!who") // Send back a list connected user (usernames)
             {
                 lsConnectedUsers = GetConnectedUsersList();
-
-                // Send the list back to the client who asked
                 byte[] data = Encoding.ASCII.GetBytes("Connected users:" + Environment.NewLine + lsConnectedUsers);
                 currentClientSocket.socket.Send(data);
-
-                // Log in server UI
                 AddToChat($"{messageLogServer} used !who command");
             }
             else if (cmd == "!about")// Client requested information about the server
             {
-                // Information about the server
                 string aboutMessage = "Server Information: " + Environment.NewLine;
                 aboutMessage += "Editor: Pedro Q " + Environment.NewLine;
                 aboutMessage += "Purpose: TCP Chat server for connecting users and sharing messages " + Environment.NewLine;
                 aboutMessage += "Year of Development: 2025 " + Environment.NewLine;
-
-                // Send the information to the client
                 byte[] data = Encoding.ASCII.GetBytes(aboutMessage);
                 currentClientSocket.socket.Send(data);
-
-                // Log in server UI
                 AddToChat($"{messageLogServer} used !about command");
             }
             else if (cmd == "!whoami")
@@ -274,14 +238,11 @@ namespace Windows_Forms_Chat
                 string reply = $"Your current username is: {currentUsername}";
                 byte[] data = Encoding.ASCII.GetBytes(reply);
                 currentClientSocket.socket.Send(data);
-
-                // Log in server UI
                 AddToChat($"{messageLogServer} used !whoami command");
             }
             else if (cmd == "!whisper")
             {
-
-                // Split into username and message
+                // Handle private message to another user
                 int spaceIndex = targetUsername.IndexOf(' ');
                 if (spaceIndex == -1)
                 {
@@ -292,47 +253,30 @@ namespace Windows_Forms_Chat
                 {
                     string whisper_targetUsername = targetUsername.Substring(0, spaceIndex);
                     string messageToSend = targetUsername.Substring(spaceIndex + 1);
-
-
-
                     if (currentClientSocket.username != null &&
                         currentClientSocket.username.Equals(whisper_targetUsername, StringComparison.OrdinalIgnoreCase))
                     {
-                        // Send the information to the client
                         byte[] selfWhisperMsg = Encoding.ASCII.GetBytes("You cannot whisper to yourself.");
                         currentClientSocket.socket.Send(selfWhisperMsg);
-                        // Log in server UI
                         AddToChat($"{messageLogServer} tried to whisper to themselves.");
                     }
                     else
                     {
-                        // Find the target client by username
                         ClientSocket targetClient = FindClientByUsername(whisper_targetUsername);
-
                         if (targetClient != null)
                         {
                             string whisperMessage = $"[Whisper from {currentClientSocket.username}]: {messageToSend}";
-
-                            // Send the information to target client
                             byte[] data = Encoding.ASCII.GetBytes(whisperMessage);
                             targetClient.socket.Send(data);
-
-                            // Send the information to the client
                             byte[] confirmation = Encoding.ASCII.GetBytes($"[Whisper to {whisper_targetUsername}]: {messageToSend}");
                             currentClientSocket.socket.Send(confirmation);
-
-                            // Log in server UI
                             AddToChat($"{messageLogServer} whispered to {whisper_targetUsername}: {messageToSend}");
                         }
                         else
                         {
-                            // Send the information to the client
                             byte[] notFoundMsg = Encoding.ASCII.GetBytes($"User '{whisper_targetUsername}' not found.");
                             currentClientSocket.socket.Send(notFoundMsg);
-
-                            // Log in server UI
                             AddToChat($"{messageLogServer} tried to whisper to non existent user '{whisper_targetUsername}'");
-
                         }
                     }
                 }
@@ -351,23 +295,17 @@ namespace Windows_Forms_Chat
                     "!clear = Clear the chat window " + Environment.NewLine +
                     "!kick = Disconnects a user from the chat (only available to moderators)" +
                     "!exit = Disconnect from chat";
-
-                // Send the information to the client
                 currentClientSocket.socket.Send(Encoding.ASCII.GetBytes(helpText));
-
-                // Log in server UI
                 AddToChat($"{messageLogServer} used !help command");
             }
             else if (cmd == "!clear")
             {
-                // Send a special signal to the client so it knows to clear the chat
                 currentClientSocket.socket.Send(Encoding.ASCII.GetBytes("!clear_chat\n"));
-
-                // Log on server UI
                 AddToChat($"{messageLogServer} used !clear command");
             }
             else if (cmd == "!kick")
             {
+                // Moderator command to kick a user
                 if (!currentClientSocket.IsModerator)
                 {
                     currentClientSocket.socket.Send(Encoding.ASCII.GetBytes("[Server Log] Only moderators can kick users."));
@@ -376,7 +314,6 @@ namespace Windows_Forms_Chat
                 else
                 {
                     ClientSocket targetUser = FindClientByUsername(targetUsername);
-
                     if (targetUser == null)
                     {
                         currentClientSocket.socket.Send(Encoding.ASCII.GetBytes($"[Server Log] user '{targetUsername}' not found."));
@@ -387,11 +324,8 @@ namespace Windows_Forms_Chat
                     }
                     else
                     {
-                        // Always Shutdown before closing
                         targetUser.socket.Send(Encoding.ASCII.GetBytes("[Server Log] You have been kicked by a moderator."));
-                        // Log on server UI
                         targetUser.socket.Shutdown(SocketShutdown.Both);
-                        // Close the socket
                         targetUser.socket.Close();
                         clientSockets.Remove(targetUser);
                         string message = $"[Server Log] user '{targetUser.username}' has been kicked by moderator '{currentClientSocket.username}'.";
@@ -402,6 +336,7 @@ namespace Windows_Forms_Chat
             }
             else if (cmd == "!joke")
             {
+                // Send a random joke to all clients
                 string[] jokes = {
                     "Why don't scientists trust atoms? Because they make up everything!",
                     "Why did the math book look sad? Because it had too many problems.",
@@ -414,27 +349,19 @@ namespace Windows_Forms_Chat
                     "I only know 25 letters of the alphabet. I do not know y.",
                     "What do you call a factory that makes good products? A satisfactory."
                 };
-
                 Random rand = new Random();
                 string selectedJoke = jokes[rand.Next(jokes.Length)];
                 string message = $"{currentClientSocket.username}: [Joke] {selectedJoke}";
-
-                // Log in server UI
                 AddToChat($"{messageLogServer} used !joke command");
                 SendToAll(message, null);
             }
             else if (cmd == "!exit") // Client wants to exit gracefully
             {
-                // Always Shutdown before closing
-                //Update the database to log out the user
                 db.LogoutUser(currentClientSocket.username);
                 currentClientSocket.socket.Shutdown(SocketShutdown.Both);
                 currentClientSocket.socket.Close();
                 clientSockets.Remove(currentClientSocket);
-
-                // Log on server UI
                 AddToChat($"{messageLogServer} used !exit command and has been disconnected");
-                //normal message broadcast out to all clients
                 SendToAll($"User {currentClientSocket.username} was disconnected", currentClientSocket);
                 return;
             }
@@ -447,6 +374,7 @@ namespace Windows_Forms_Chat
             }
             else if (cmd == "!scores")
             {
+                // Send sorted leaderboard to client
                 var scores = db.GetAllScoresSorted();
                 StringBuilder sb = new StringBuilder();
                 sb.AppendLine("Username\tWins\tDraws\tLosses");
@@ -459,10 +387,9 @@ namespace Windows_Forms_Chat
             }
             else if (cmd == "!login")
             {
-                // Example: targetUsername = "username=Pedro;state=Chatting"
+                // Handle login command from client
                 if (!string.IsNullOrWhiteSpace(targetUsername))
                 {
-                    // Split by ';' to get key-value pairs
                     var pairs = targetUsername.Split(';');
                     foreach (var pair in pairs)
                     {
@@ -471,14 +398,12 @@ namespace Windows_Forms_Chat
                         {
                             var key = kv[0].Trim().ToLower();
                             var value = kv[1].Trim();
-
                             if (key == "username" && !string.IsNullOrWhiteSpace(value))
                             {
                                 currentClientSocket.username = value;
                             }
                             else if (key == "state" && !string.IsNullOrWhiteSpace(value))
                             {
-                                // Try to parse the state string to the enum
                                 if (Enum.TryParse<ClientState>(value, true, out var state))
                                 {
                                     currentClientSocket.State = state;
@@ -491,6 +416,7 @@ namespace Windows_Forms_Chat
             }
             else if (cmd == "!join")
             {
+                // Handle join game request
                 if (!gameInProgress)
                 {
                     if (player1 == null)
@@ -506,7 +432,6 @@ namespace Windows_Forms_Chat
                         player2.State = ClientState.Playing;
                         player2Tile = TileType.naught;
                         currentClientSocket.socket.Send(Encoding.ASCII.GetBytes("!player2\n"));
-
                         // Start the game
                         gameInProgress = true;
                         currentTurn = player1;
@@ -525,22 +450,22 @@ namespace Windows_Forms_Chat
             }
             else if (cmd == "!move")
             {
+                // Handle Tic-Tac-Toe move from a player
                 if (gameInProgress && currentClientSocket == currentTurn)
                 {
                     if (int.TryParse(targetUsername, out int moveIndex))
                     {
-                        // Update serverTicTacToe grid
+                        // Update server-side board
                         var tileType = (currentTurn == player1) ? TileType.cross : TileType.naught;
                         bool valid = serverTicTacToe.SetTile(moveIndex, tileType);
                         if (valid)
                         {
-                            // Broadcast new board state to both players
+                            // Broadcast new board state to all clients
                             string boardState = serverTicTacToe.GridToString();
                             foreach (var c in clientSockets)
                             {
                                 c.socket.Send(Encoding.ASCII.GetBytes("!board " + boardState + "\n"));
                             }
-
                             // Check for win/draw
                             GameState gs = serverTicTacToe.GetGameState();
                             if (gs == GameState.crossWins || gs == GameState.naughtWins || gs == GameState.draw)
@@ -549,7 +474,6 @@ namespace Windows_Forms_Chat
                                 string winner = null, loser = null;
                                 if (gs == GameState.crossWins)
                                 {
-                                    // The player with TileType.cross is the winner
                                     if (player1Tile == TileType.cross)
                                     {
                                         winner = player1.username;
@@ -567,7 +491,6 @@ namespace Windows_Forms_Chat
                                 }
                                 else if (gs == GameState.naughtWins)
                                 {
-                                    // The player with TileType.naught is the winner
                                     if (player1Tile == TileType.naught)
                                     {
                                         winner = player1.username;
@@ -588,7 +511,6 @@ namespace Windows_Forms_Chat
                                     player1.socket.Send(Encoding.ASCII.GetBytes("!draw\n"));
                                     player2.socket.Send(Encoding.ASCII.GetBytes("!draw\n"));
                                 }
-
                                 if (gs == GameState.crossWins || gs == GameState.naughtWins)
                                 {
                                     db.AddWin(winner);
@@ -599,13 +521,11 @@ namespace Windows_Forms_Chat
                                     db.AddDraw(player1.username);
                                     db.AddDraw(player2.username);
                                 }
-
-                                // Inform players to return to chat state
+                                // Inform all clients to return to chat state
                                 foreach (var c in clientSockets)
                                 {
                                     c.socket.Send(Encoding.ASCII.GetBytes("!chatstate\n"));
                                 }
-
                                 // Reset game state
                                 gameInProgress = false;
                                 player1.State = ClientState.Chatting;
@@ -628,67 +548,53 @@ namespace Windows_Forms_Chat
             }
             else
             {
+                // General chat message
                 formattedMessage = $"{currentClientSocket.username}: {text}";
-                // Log on server UI
                 AddToChat(formattedMessage);
-                //normal message broadcast out to all clients
                 SendToAll(formattedMessage, currentClientSocket);
             }
-            //we just received a message from this socket, better keep an ear out with another thread for the next one
+            // Continue listening for more data from this client
             currentClientSocket.socket.BeginReceive(currentClientSocket.buffer, 0, ClientSocket.BUFFER_SIZE, SocketFlags.None, ReceiveCallback, currentClientSocket);
         }
-        // Handles server-side admin commands
+
+        // Handles server-side admin commands (for server UI)
         public void HandleServerCommand(string command)
         {
             string[] parts = command.Trim().Split(' ', 2);
-            // Ensure the command is not empty
             string cmd = parts[0].ToLower();
-            // Extract the parameter if it exists
             string targetUsername = parts.Length > 1 ? parts[1].Trim() : null;
-
             if (cmd == "!mod")
             {
                 ClientSocket targetUser = FindClientByUsername(targetUsername);
-
                 if (targetUser != null)
                 {
-                    // If the user is found, toggle their moderator status
                     if (targetUser.IsModerator)
                     {
-                        // Demote the user from moderator
                         targetUser.IsModerator = false;
-                        // Send a message to all clients about the demotion
                         SendToAll($"[Server] {targetUsername} has been demoted from moderator.", null);
                         AddToChat($"[Server Log] Demoted {targetUsername} from moderator.");
                     }
                     else
                     {
-                        // Promote the user to moderator
                         targetUser.IsModerator = true;
-                        // Send a message to all clients about the promotion
                         SendToAll($"[Server] {targetUsername} has been promoted to moderator.", null);
                         AddToChat($"[Server Log] Promoted {targetUsername} to moderator.");
                     }
                 }
                 else
                 {
-                    // If the user is not found, log it and return
                     AddToChat($"[Server] User '{targetUsername}' not found.");
-
                 }
             }
             else if (cmd == "!mods")
             {
-                // List all current moderators
                 var mods = clientSockets.Where(c => c.IsModerator).Select(c => c.username).ToList();
                 if (mods.Count == 0)
                 {
-                    // If no moderators are found, log it in the server side
                     AddToChat("[Server Log] No moderators currently assigned.");
                 }
                 else
                 {
-                    // If moderators are found, list them
                     AddToChat("[Server Log] Current moderators:");
                     foreach (string mod in mods)
                         AddToChat($" - {mod}");
@@ -711,35 +617,26 @@ namespace Windows_Forms_Chat
             }
             else
             {
-                // Handle unknown commands for server
                 AddToChat("[Server Log] Unknown server command.");
             }
         }
-        // Returns all connected usernames
+
+        // Returns all connected usernames as a string
         public string GetConnectedUsersList()
         {
-            // Check if there are any connected clients
             if (clientSockets.Count == 0)
                 return "No users connected";
-
-            // StringBuilder is used for efficient string concatenation
             StringBuilder sb = new StringBuilder();
-
-            // Loop through each connected client
             foreach (ClientSocket c in clientSockets)
             {
-                // Only add the username if it's not null or empty
                 if (!string.IsNullOrEmpty(c.username))
                     sb.AppendLine(c.username);
             }
-
-            // If no valid usernames were added, return fallback message
             if (string.IsNullOrWhiteSpace(sb.ToString()))
                 return "No users connected";
-
-            // Return the list of connected usernames, removing trailing newlines
             return sb.ToString().TrimEnd('\r', '\n');
         }
+
         // Finds a client by username
         private ClientSocket FindClientByUsername(string username)
         {

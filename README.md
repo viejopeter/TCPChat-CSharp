@@ -1,24 +1,34 @@
 # Windows Forms Chat
 
-A C# Windows Forms Application that allows users to chat over TCP (client-server model). The app supports multiple commands, private messaging (whisper), user moderation, and username management.
+A Windows Forms application for real-time chat and multiplayer Tic-Tac-Toe, featuring user authentication, persistent score tracking, and a rich set of chat commands. Built with C# (.NET 8), SQLite, and asynchronous TCP networking.
 
 # Features
 
-- **Client-Server TCP Chat**
-  - Host or join a chat using IP and port
-  - Realtime messaging
-  - Command-based interactions
-- **Username & User List**
-  - Set and change your username
-  - List all connected users
-- **Moderator Controls**
-  - Promote/Demote moderators
-  - Kick users
-- **Private Messaging**
-  - Whisper to another user
-- **Fun**
-  - Tell a joke `!joke`
-  - Ask for server time `!time`
+## User Authentication
+- Secure sign-up and login with password validation  
+- Unique usernames enforced  
+- Authentication status tracked in the database  
+
+## Chat System
+- Public chat room for all connected users  
+- Private messaging (`!whisper [username] [message]`)  
+- Moderator commands (`!kick`, `!mod`, `!mods`)  
+- Server and client-side command support (`!who`, `!about`, `!help`, `!clear`, `!exit`, etc.)  
+
+## Tic-Tac-Toe Game
+- Integrated multiplayer game  
+- Join with `!join` command; assigned as player 1 or 2  
+- Server manages game state, turn order, and board updates  
+- Board state broadcast to all clients for real-time viewing  
+- Game results (win, lose, draw, disconnect) handled and scores updated  
+
+## Leaderboard
+- Persistent score tracking (wins, draws, losses) in SQLite  
+- View sorted leaderboard with `!scores` command  
+
+## Robust Networking
+- Asynchronous TCP sockets for scalable client-server communication  
+- Graceful handling of disconnects and errors  
 
 ## Setup Instructions
 
@@ -36,15 +46,6 @@ A C# Windows Forms Application that allows users to chat over TCP (client-server
 
         Press F5 or click on Start to run the application
 
-## How to Use
-    To Host a Server
-
-    Enter a port number in My Port
-
-    Click Host
-
-    Share your IP and port with others to let them join
-
 ## To Join a Server
 
     Enter your local port in My Port
@@ -55,21 +56,45 @@ A C# Windows Forms Application that allows users to chat over TCP (client-server
 
     Optionally change your username and start chatting
 
-## Available Commands
+# Usage
 
-Command	Description
+## Chat Commands
+- `!who` — List connected users  
+- `!about` — Server info  
+- `!help` — List all commands  
+- `!username [newName]` — Change your username  
+- `!whisper [username] [message]` — Send a private message  
+- `!kick [username]` — Moderator: kick a user  
+- `!mod [username]` — Promote/demote moderator  
+- `!mods` — List moderators  
+- `!clear` — Clear chat window  
+- `!exit` — Disconnect  
 
-!about	Information about the server
-!commands	Lists all available commands
-!username <name>	Change your username
-!who	Lists all connected users
-!whoami	Shows your current username
-!whisper <user> <msg>	Sends a private message to another user
-!clear	Clears your chat window
-!joke	Tells a random joke
-!time	Gets the current server time
-!help	Shows help for all commands
-!kick <user>	(Moderator only) Disconnect a user
-!mod <user>	Promote/Demote a user as moderator (Server only)
-!mods	List all moderators (Server only)
-!exit	Disconnect from the chat
+## Game Commands
+- `!join` — Join Tic-Tac-Toe game  
+- `!move [0-8]` — Make a move (automatically sent by UI)  
+- `!scores` — View leaderboard  
+
+
+# Database
+
+- **SQLite file:** `tic_chat_game.db` (auto-created in project directory)  
+
+## Tables
+
+### Users
+- `username` — Unique identifier for each user  
+- `password` — Securely stored password  
+- `wins` — Number of games won  
+- `losses` — Number of games lost  
+- `draws` — Number of games drawn  
+- `is_authenticated` — Tracks whether the user is logged in  
+
+# License
+MIT License  
+
+# Credits
+- Developed by **Pedro Q**  
+- For **Networking and Database Systems**, Bachelor of Information Technology  
+
+
